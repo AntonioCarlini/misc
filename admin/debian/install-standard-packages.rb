@@ -26,9 +26,16 @@ def main()
   # --log
   # --nolog
   #    Logs or doesn't log
+  #
+  # --bundle=misc.bundle
+  #    Specifies where to find a bundle (only allowed if script is not in a git repo)
+  #
+  # --assume-repo
+  #    Assume that the script is being run from a "git repo"-like directory structure.
   #-
 
   options = GetoptLong.new(
+    [ '--bundle',          '-b', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--log',             '-l', GetoptLong::OPTIONAL_ARGUMENT ],
     [ '--nolog',           '-L', GetoptLong::NO_ARGUMENT ],
     [ '--all',             '-a', GetoptLong::NO_ARGUMENT ],
@@ -48,9 +55,14 @@ def main()
   
   bad_option = false
 
+  bundle = nil
+  assume_in_repo = false
+
   options.each() {
     |opt, arg|
     case opt
+    when '--bundle'
+      bundle = arg.dup()
     when '--all'
       do_workstation = true
       do_development = true
@@ -86,13 +98,41 @@ def main()
       end
     when '--nolog'
       log_file = nil
+    when '--assume-in-repo'
+      assume_in_repo = true
     else
       $stderr.puts("Unrecognised option: [#{opt}]")
       bad_option = true
     end
   }
 
-  exit if bad_option
+  exit(1) if bad_option
+
+  unless assume_in_repo
+    # Check if in git repo
+    if script_in_git_repo?()
+      puts("Running in a git repo") 
+      unless bundle.nil?()
+        $stderr.puts("--bundle not allowed if running in a git repo")
+        exit(2)
+      end
+    else
+      puts("NOT running in a git repo") 
+      # Not running in a git repo. Use --bundle to create a repo in $HOME/repo/misc.
+      have_git = git_present?()
+      if bundle.nil?() || !have_git
+        $stderr.puts("Bare script needs a --bundle") if bundle.nil?()
+        $stderr.puts("git needs to be installed") if bundle.nil?()
+        exit(3)
+      end
+      # Expand bundle ...
+      _, _, status = Shell::execute_shell_commands("mkdir -p $HOME/repo; cd $HOME/repo; git clone #{bundle}", [:dry_run])
+      unless status
+        $stderr.puts("Failed to create repo in root's home directory")
+        exit(4)
+      end
+    end
+  end
 
   actions = Actions.new(log_file)
 
@@ -190,9 +230,22 @@ def install_virt_what()
   Package::install_apt_packages("virt-what", [:dry_run])
 end
 
+# Determine whether the script is running out of a git repo
+def script_in_git_repo?()
+  script_dir = File.basename(__FILE__)
+  _, _, status = Shell::execute_shell_commands("cd #{script_dir}; git rev-parse", [:silent_command, :suppress_output])
+  return status
+end
+
+# Determine whether git is available
+def git_present?()
+  _, _, status = Shell::execute_shell_commands("which git", [:silent_command, :suppress_output])
+  return status
+end
+
 def prepare_debian(actions)
   apt = []
-  apt << "emacs24"
+  apt << "emacs"                     # wheezy has emacs23, jessie has emcs24, so be non-specific here
   apt << "lsb-release"
   apt << "nano"
   apt << "nfs-common"
@@ -238,7 +291,7 @@ end
 
 def prepare_vmware_tools(actions)
   install_virt_what()
-  out, _err, _status = Shell::execute_shell_commands("virt-what", [:silent_command, :suppress_output])
+  out, _, _ = Shell::execute_shell_commands("virt-what", [:silent_command, :suppress_output])
   return unless out =~ /vmware/ix
   # This should only do something if running in a vmware environment
   # ?
@@ -264,7 +317,7 @@ def prepare_workstation(actions)
   # apt << "knode"                   # not available on jessie (at least not on arm64)
   apt << "dovecot-imapd"
   apt << "dovecot-pop3d"
-  apt << "emacs24"
+  apt << "emacs"                     # wheezy has emacs23, jessie has emcs24, so be non-specific here
   apt << "gconf-editor"
   apt << "git-core"
   apt << "git-doc"
