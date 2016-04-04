@@ -261,7 +261,7 @@ def prepare_debian(actions)
   apt << "nano"
   apt << "nfs-common"
   apt << "nfs-kernel-server"
-  apt << "ssh-server"
+  apt << "openssh-server"
   apt << "sudo"
   actions.add_apt_packages(apt)
   actions.add_config_function(:configure_hostname)
