@@ -32,9 +32,13 @@ def main()
   #
   # --assume-repo
   #    Assume that the script is being run from a "git repo"-like directory structure.
+  #
+  # --dry-run
+  #    Avoid executing any commands
   #-
 
   options = GetoptLong.new(
+    [ '--dry-run',         '-n', GetoptLong::NO_ARGUMENT ],
     [ '--bundle',          '-b', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--log',             '-l', GetoptLong::OPTIONAL_ARGUMENT ],
     [ '--nolog',           '-L', GetoptLong::NO_ARGUMENT ],
@@ -52,7 +56,8 @@ def main()
   do_dns_server = false
   do_wiki_server = false
   log_file = nil
-  
+  dry_run = false
+
   bad_option = false
 
   bundle = nil
@@ -61,6 +66,8 @@ def main()
   options.each() {
     |opt, arg|
     case opt
+    when '--dry-run'
+      dry_run = true
     when '--bundle'
       bundle = arg.dup()
     when '--all'
@@ -126,7 +133,7 @@ def main()
         exit(3)
       end
       # Expand bundle ...
-      _, _, status = Shell::execute_shell_commands("mkdir -p $HOME/repo; cd $HOME/repo; git clone #{bundle}", [:dry_run])
+      _, _, status = Shell::execute_shell_commands("mkdir -p $HOME/repo; cd $HOME/repo; git clone #{bundle}")
       unless status
         $stderr.puts("Failed to create repo in root's home directory")
         exit(4)
@@ -148,10 +155,14 @@ def main()
   prepare_wiki_server(actions)      if do_wiki_server
 
   # Install the necessary packages via apt
-  Package::install_apt_packages(actions.apt_packages(), [:dry_run])
+  apt_options = []
+  apt_options << :dry_run if dry_run
+  Package::install_apt_packages(actions.apt_packages(), apt_options)
 
   # Install the necessary packages via apt
-  #Package::install_dpkg_packages(actions.dpkg_packages(), [:dry_run])
+  dpkg_options = []
+  dpkg_options << :dry_run if dry_run
+  Package::install_dpkg_packages(actions.dpkg_packages(), dpkg_options)
 
   # select-editor?
 
