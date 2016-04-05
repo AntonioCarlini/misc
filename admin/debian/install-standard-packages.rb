@@ -35,6 +35,12 @@ def main()
   #
   # --dry-run
   #    Avoid executing any commands
+  #
+  # --host
+  #    Host name
+  #
+  # --ipv4-address
+  #    IPv4 address
   #-
 
   options = GetoptLong.new(
@@ -46,6 +52,7 @@ def main()
     [ '--workstation',     '-w', GetoptLong::NO_ARGUMENT ],
     [ '--development',     '-d', GetoptLong::NO_ARGUMENT ],
     [ '--host',            '-h', GetoptLong::REQUIRED_ARGUMENT ],
+    [ '--ipv4-address',    '-4', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--server',          '-s', GetoptLong::OPTIONAL_ARGUMENT]
   )
 
@@ -59,6 +66,7 @@ def main()
   log_file = nil
   dry_run = false
   host = nil
+  ipv4_address = nil
   bad_option = false
 
   bundle = nil
@@ -73,6 +81,8 @@ def main()
       bundle = arg.dup()
     when '--host'
       host = arg.dup()
+    when '--ipv4-address'
+      ipv4_address = arg.dup()
     when '--all'
       do_workstation = true
       do_development = true
@@ -147,6 +157,7 @@ def main()
   actions = Actions.new(log_file, dry_run)
 
   actions.set_host(host)
+  actions.set_ipv4_address(ipv4_address)
 
   #+
   # Prepare a set of actions (things to do)
@@ -191,6 +202,7 @@ class Actions
   attr_reader :config_functions
   attr_reader :dpkg_packages
   attr_reader :host
+  attr_reader :ipv4_address
 
   def initialize(log_file, dry_run)
     @apt_packages = []
@@ -199,6 +211,7 @@ class Actions
     puts("Logging to #{log_file}") unless @log.nil?()
     @config_functions = []
     @host = nil
+    @ipv4_address = nil
     @dry_run = dry_run
   end
 
@@ -248,6 +261,10 @@ class Actions
 
   def set_host(host)
     @host = host
+  end
+
+  def set_ipv4_address(ipv4_address)
+    @ipv4_address = ipv4_address
   end
 end
 
@@ -412,6 +429,23 @@ def configure_ip_address(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
   # Set a new IP address if required
+  this_ip = actions.ipv4_address()
+  return if this_ip.nil?()
+  dns_master = "192.168.1.105"
+  gateway = "192.168.1.101"
+  File.open("/etc/network/interfaces", "w") {
+    |file|
+    file.write("# interfaces(5) file used by ifup(8) and ifdown(8)\n\n")
+    file.write("auto lo\n")
+    file.write("iface lo inet loopback\n\n")
+    file.write("auto eth0\n")
+    file.write("iface eth0 inet static\n")
+    file.write("  address #{this_ip}\n")
+    file.write("  netmask 255.255.255.0\n")
+    file.write("  gateway #{gateway}\n")
+    file.write("  dns-nameservers #{dns_master} 8.8.8.8\n")
+    file.write("  dns-search flexbl.co.uk\n\n\n")
+  }
 end
 
 def configure_japanese_language_support(actions)
