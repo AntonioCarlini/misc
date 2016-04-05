@@ -45,6 +45,7 @@ def main()
     [ '--all',             '-a', GetoptLong::NO_ARGUMENT ],
     [ '--workstation',     '-w', GetoptLong::NO_ARGUMENT ],
     [ '--development',     '-d', GetoptLong::NO_ARGUMENT ],
+    [ '--host',            '-h', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--server',          '-s', GetoptLong::OPTIONAL_ARGUMENT]
   )
 
@@ -57,7 +58,7 @@ def main()
   do_wiki_server = false
   log_file = nil
   dry_run = false
-
+  host = nil
   bad_option = false
 
   bundle = nil
@@ -70,6 +71,8 @@ def main()
       dry_run = true
     when '--bundle'
       bundle = arg.dup()
+    when '--host'
+      host = arg.dup()
     when '--all'
       do_workstation = true
       do_development = true
@@ -141,7 +144,9 @@ def main()
     end
   end
 
-  actions = Actions.new(log_file)
+  actions = Actions.new(log_file, dry_run)
+
+  actions.set_host(host)
 
   #+
   # Prepare a set of actions (things to do)
@@ -169,7 +174,8 @@ def main()
   # Go through all the configuration functions, one by one.
   actions.config_functions().each() {
     |cf|
-    puts("Should invoke: #{cf}")
+    puts("Invoking: #{cf}")
+    send(cf, actions)
   }
   
   # All done. Close the log.
@@ -184,13 +190,20 @@ class Actions
   attr_reader :apt_packages
   attr_reader :config_functions
   attr_reader :dpkg_packages
-  
-  def initialize(log_file)
+  attr_reader :host
+
+  def initialize(log_file, dry_run)
     @apt_packages = []
     @dpkg_packages = []
     @log = log_file.nil?() ? nil : File.open(log_file, "w")
     puts("Logging to #{log_file}") unless @log.nil?()
     @config_functions = []
+    @host = nil
+    @dry_run = dry_run
+  end
+
+  def dry_run?()
+    return @dry_run
   end
 
   def log(message)
@@ -232,6 +245,10 @@ class Actions
   def add_config_function(function)
     @config_functions << function unless @config_functions.include?(function)
   end
+
+  def set_host(host)
+    @host = host
+  end
 end
 
 # virt-what needs to be installed early so that VMware can be spotted
@@ -252,6 +269,12 @@ end
 def git_present?()
   _, _, status = Shell::execute_shell_commands("which git", [:silent_command, :suppress_output])
   return status
+end
+
+# Takes actions to block adverts, such as tweaking the hosts file
+def prepare_advert_blocking(actions)
+  actions.add_apt_packages("lynx")
+  actions.add_config_function(:configure_advert_blocking)
 end
 
 def prepare_debian(actions)
@@ -351,33 +374,58 @@ def prepare_workstation(actions)
   prepare_vmware_tools(actions)
   prepare_wiki_server(actions)
   prepare_japanese_language_support(actions)
+  prepare_advert_blocking(actions)
+end
 
+def configure_advert_blocking(actions)
+  puts("Performing: #{__method__}")
+  return if actions.dry_run?()
+  path = File.path(File.dirname(__FILE__))
+  Shell::execute_shell_commands("#{path}/install-advert-blocking-hosts-file.sh")
 end
 
 def configure_dns_server(actions)
   puts("TODO:#{__method__} ")
+  return if actions.dry_run?()
   # Configure the zone file /etc/bind/zones/master/flexbl.local as follows:
   # Configure the reverse mapping /etc/bind/zones/master/192.168.1.rev as follows:
   # Point bind9 at the zone file by editing /etc/bind/named.conf.local:
 end
 
-def config_hostname(actions)
-  puts("TODO:#{__method__} ")
-  # Set a host name if required
+def configure_hostname(actions)
+  puts("Performing :#{__method__}")
+  return if actions.dry_run?()
+  host = actions.host()
+  if host.nil?()
+    puts("No host name configuration required")
+    return
+  end
+
+  # Set up the require /etc/hostname file
+  File.open("/etc/hostname", "w") { |file| file.write("#{host}\n") }
+
+  # Edit the existing /etc/hosts file to change the current host to the new one
+  Shell::execute_shell_commands("cp /etc/hosts /etc/hosts.original; cat /etc/hosts.original | sed -e 's/127.0.1.1.*/127.0.1.1       #{host}/' > /etc/hosts")
+
+  # Temporary test
+  configure_advert_blocking(actions)
 end
 
-def config_ip_address(actions)
+def configure_ip_address(actions)
   puts("TODO:#{__method__} ")
+  return if actions.dry_run?()
   # Set a new IP address if required
 end
 
 def configure_japanese_language_support(actions)
   puts("TODO:#{__method__} ")
+  return if actions.dry_run?()
   # Go to Preferences -> Language Support
 end
 
 def configure_nis_server(actions)
   puts("TODO:#{__method__} ")
+  return if actions.dry_run?()
   # Edit /etc/default/nis and change the NISMASTER line to
   # NISSERVER=master
   # domainname flexbl
@@ -392,8 +440,9 @@ def configure_nis_server(actions)
   # /etc/init.d/nis start
 end
 
-def configure_sudo()
+def configure_sudo(actions)
   puts("TODO:#{__method__} ")
+  return if actions.dry_run?()
   #setup sudo
   #sudo select-editor
   #sudo visudo
