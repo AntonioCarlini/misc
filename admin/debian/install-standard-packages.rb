@@ -406,9 +406,6 @@ def configure_hostname(actions)
 
   # Edit the existing /etc/hosts file to change the current host to the new one
   Shell::execute_shell_commands("cp /etc/hosts /etc/hosts.original; cat /etc/hosts.original | sed -e 's/127.0.1.1.*/127.0.1.1       #{host}/' > /etc/hosts")
-
-  # Temporary test
-  configure_advert_blocking(actions)
 end
 
 def configure_ip_address(actions)
