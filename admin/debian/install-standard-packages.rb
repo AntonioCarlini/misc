@@ -175,7 +175,12 @@ def main()
   apt_options << :dry_run if dry_run
   Package::install_apt_packages(actions.apt_packages(), apt_options)
 
-  # Install the necessary packages via apt
+  # Install packages that need presseding
+  apt_options = []
+  apt_options << :dry_run if dry_run
+  Package::install_apt_preseed_packages(actions.apt_preseed_packages(), apt_options)
+
+  # Install the necessary packages via dpkg
   dpkg_options = []
   dpkg_options << :dry_run if dry_run
   Package::install_dpkg_packages(actions.dpkg_packages(), dpkg_options)
@@ -199,6 +204,7 @@ end
 class Actions
 
   attr_reader :apt_packages
+  attr_reader :apt_preseed_packages
   attr_reader :config_functions
   attr_reader :dpkg_packages
   attr_reader :host
@@ -206,6 +212,7 @@ class Actions
 
   def initialize(log_file, dry_run)
     @apt_packages = []
+    @apt_preseed_packages = []
     @dpkg_packages = []
     @log = log_file.nil?() ? nil : File.open(log_file, "w")
     puts("Logging to #{log_file}") unless @log.nil?()
@@ -241,6 +248,10 @@ class Actions
     else
       add_single_apt_package(packages)
     end
+  end
+
+  def add_apt_preseed_package(package, question, question_type, value)
+    @apt_preseed_packages << "#{package} #{question} #{question_type} #{value}"
   end
 
   def add_single_dpkg_package(package)
@@ -302,10 +313,13 @@ def prepare_debian(actions)
   apt << "nfs-common"
   apt << "nfs-kernel-server"
   apt << "openssh-server"
+  apt << "portmap"
   apt << "sudo"
+  actions.add_apt_preseed_package("nis", "nis/domain", "string", "flexbl")
   actions.add_apt_packages(apt)
   actions.add_config_function(:configure_hostname)
   actions.add_config_function(:configure_ip_address)
+  actions.add_config_function(:configure_nis_client)
   actions.add_config_function(:configure_sudo)
 end
 
@@ -453,6 +467,12 @@ def configure_japanese_language_support(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
   # Go to Preferences -> Language Support
+end
+
+def configure_nis_client(actions)
+  puts("Processing:#{__method__} ")
+  return if actions.dry_run?()
+  Shell::execute_shell_commands("domainname flexbl")
 end
 
 def configure_nis_server(actions)

@@ -126,6 +126,31 @@ module Shell
     end
     return cum_stdout, cum_stderr, true
   end
+
+  def self.execute_shell_command_with_environment(environment, command, options = [])
+    opt = Shell::Options.new(options)
+    status = true
+    cum_stdout = ""
+    cum_stderr = ""
+    puts("$ ENV: #{environment}") if opt.echo_command?()
+    puts("$ #{command}") if opt.echo_command?()
+    begin
+      Open3.popen2e(environment, command) {
+        |stdin, stdouterr, thr|
+        stdin.close()
+        stdouterr.each_line() {
+          |line|
+            puts("#{line}") # This needs to happen for some reason
+            cum_stdout << line
+          }
+          status &= thr.value.success?()
+        }
+    rescue
+      puts("#{command.split().first()}: command not found")
+      status = false
+    end
+    return cum_stdout, cum_stderr, status
+  end
   
 end # end of Shell
 
