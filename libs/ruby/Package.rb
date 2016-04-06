@@ -86,6 +86,15 @@ module Package
     Shell::execute_shell_commands("apt-get -y install #{opt.text()} #{all_packages}")
   end
 
+  def self.install_apt_preseed_packages(packages, options = nil)
+    opt = Package::AptOptions.new(options)
+    packages.each() {
+      |pkg|
+      Shell::execute_shell_commands("echo #{pkg} | debconf-set-selections")
+      Shell::execute_shell_command_with_environment({"DEBIAN_FRONTEND" => "noninteractive"}, "apt-get -y install #{opt.text()} #{pkg.split()[0]}")
+    }
+  end
+
   def self.install_dpkg_packages(packages, options)
     opt = Package::DpkgOptions.new(options)
     prefix = opt.dry_run?() ? "#" : ""
