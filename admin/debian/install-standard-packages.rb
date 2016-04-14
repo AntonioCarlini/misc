@@ -41,9 +41,13 @@ def main()
   #
   # --ipv4-address
   #    IPv4 address
+  #
+  # --verbose
+  #    Turn on verbose mode (currently does nothing)
   #-
 
   options = GetoptLong.new(
+    [ '--verbose',         '-v', GetoptLong::NO_ARGUMENT ],
     [ '--dry-run',         '-n', GetoptLong::NO_ARGUMENT ],
     [ '--bundle',          '-b', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--log',             '-l', GetoptLong::OPTIONAL_ARGUMENT ],
@@ -62,13 +66,14 @@ def main()
   do_nis_server = false
   do_web_server = false
   do_dns_server = false
+  do_munin_master = false
   do_wiki_server = false
+  do_verbose = false
   log_file = nil
   dry_run = false
   host = nil
   ipv4_address = nil
   bad_option = false
-
   bundle = nil
   assume_in_repo = false
 
@@ -108,6 +113,8 @@ def main()
           do_web_server = true
         when 'wiki'
           do_wiki_server = true
+        when 'munin'
+          do_munin_master = true
         end
       }
     when '--log'
@@ -120,6 +127,8 @@ def main()
       log_file = nil
     when '--assume-in-repo'
       assume_in_repo = true
+    when '--verbose'
+      do_verbose = true
     else
       $stderr.puts("Unrecognised option: [#{opt}]")
       bad_option = true
@@ -166,6 +175,7 @@ def main()
   prepare_workstation(actions)      if do_workstation
   prepare_development(actions)      if do_development
   prepare_dns_server(actions)       if do_dns_server
+  prepare_munin_master(actions)     if do_munin_master
   prepare_nis_server(actions)       if do_nis_server
   prepare_web_server(actions)       if do_web_server
   prepare_wiki_server(actions)      if do_wiki_server
@@ -309,6 +319,7 @@ def prepare_debian(actions)
   apt = []
   apt << "emacs"                     # wheezy has emacs23, jessie has emcs24, so be non-specific here
   apt << "lsb-release"
+  apt << "munin-node"
   apt << "nano"
   apt << "nfs-common"
   apt << "nfs-kernel-server"
@@ -341,6 +352,18 @@ def prepare_japanese_language_support(actions)
   apt << "ibus-anthy"
   actions.add_apt_packages(apt)
   actions.add_config_function(:configure_japanese_language_support)
+end
+
+def prepare_munin_master(actions)
+  apt = []
+  apt << "apache2"
+  apt << "apache2-utils"
+  apt << "libapache2-mod-fcgid"
+  apt << "libcgi-fast-perl"
+  apt << "munin"
+  apt << "munin-plugins-extra"
+  actions.add_apt_packages(apt)
+  actions.add_config_function(:configure_munin_master)
 end
 
 def prepare_nis_server(actions)
@@ -467,6 +490,18 @@ def configure_japanese_language_support(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
   # Go to Preferences -> Language Support
+end
+
+def configure_munin_master(actions)
+  puts("TODO:#{__method__} ")
+  return if actions.dry_run?()
+  # /etc/munin/munin.conf: enable directories ; change localhost.localdomain to munin-id
+  # mkdir -p /var/www/munin ; chown munin:munin /var/www/munin
+  # /etc/munin/apache.conf:
+  #  Alias /munin /var/www/munin
+  #  <Directory /var/www/munin ...
+  # etc
+  # restart apache2 ; restart munin-node
 end
 
 def configure_nis_client(actions)
