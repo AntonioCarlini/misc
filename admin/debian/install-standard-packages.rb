@@ -496,11 +496,17 @@ def configure_munin_master(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
   # /etc/munin/munin.conf: enable directories ; change localhost.localdomain to munin-id
-  # mkdir -p /var/www/munin ; chown munin:munin /var/www/munin
+  cmd = "cat /etc/munin/munin.conf | sed -r -e 's/#(db|html|log|run|tmpl)dir/\\1dir/g' -e 's/localhost.localdomain/MuninMaster/' > /etc/munin/munin.conf.mod"
+  Shell::execute_shell_commands(cmd)
+  # Shell::execute_shell_commands("mv /etc/munin/munin.conf.mod /etc/munin/munin.conf")
+  Shell::execute_shell_commands("mkdir -p /var/www/munin ; chown munin:munin /var/www/munin")
+  Shell::execute_shell_commands("sudo a2enmod fcgid")
   # /etc/munin/apache.conf:
   #  Alias /munin /var/www/munin
   #  <Directory /var/www/munin ...
   # etc
+  Shell::execute_shell_commands("service apache2 restart")
+  Shell::execute_shell_commands("service munin-node restart")
   # restart apache2 ; restart munin-node
 end
 
