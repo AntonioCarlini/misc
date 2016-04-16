@@ -323,6 +323,7 @@ def prepare_debian(actions)
   apt << "nano"
   apt << "nfs-common"
   apt << "nfs-kernel-server"
+  apt << "ntp"
   apt << "openssh-server"
   apt << "portmap"
   apt << "sudo"
@@ -332,6 +333,7 @@ def prepare_debian(actions)
   actions.add_config_function(:configure_ip_address)
   actions.add_config_function(:configure_nis_client)
   actions.add_config_function(:configure_sudo)
+    actions.add_config_function(:configure_timezone)
 end
 
 def prepare_development(actions)
@@ -542,6 +544,11 @@ def configure_sudo(actions)
   #add this line: $USER ALL=(ALL:ALL) NOPASSWD: ALL
 end
 
+def configure_timezone(actions)
+  puts("TODO:#{__method__} ")
+  return if actions.dry_run?()
+  Shell::execute_shell_commands("cp /usr/share/zoneinfo/Europe/London /etc/localtime")
+end
 
 # TODO: consider VMTools?
 # report time taken for each install and success/failure
