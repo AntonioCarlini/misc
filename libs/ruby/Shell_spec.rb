@@ -21,6 +21,10 @@ describe Shell::Options do
     expect(@opt_default.combine_out_err?()).to eq(true)
   end
 
+  it "should default to a live run" do
+    expect(@opt_default.dry_run?()).to eq(false)
+  end
+
   it "should support :stop_on_failure" do
     expect(Shell::Options.new([:stop_on_failure]).stop_on_failure?()).to eq(true)
   end
@@ -53,6 +57,14 @@ describe Shell::Options do
     expect(Shell::Options.new([:split_out_err]).combine_out_err?()).to eq(false)
   end
 
+  it "should support :dry_run" do
+    expect(Shell::Options.new([:dry_run]).dry_run?()).to eq(true)
+  end
+
+  it "should support :live_run" do
+    expect(Shell::Options.new([:live_run]).dry_run?()).to eq(false)
+  end
+
 end
 
 describe "Shell::execute_shell_commands" do
@@ -69,6 +81,9 @@ describe "Shell::execute_shell_commands" do
   end
 
   it "should be able to perform a multiple commands, with command and output echo, stopping on first command reporting a failure" do
+  end
+
+  it "should honour dry_run option" do
   end
 
 end

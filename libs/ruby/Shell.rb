@@ -15,6 +15,7 @@ module Shell
       @echo_command               = true
       @echo_output                = true
       @combine_out_err            = true
+      @dry_run                    = false
     end
 
     def stop_on_failure?()
@@ -33,6 +34,10 @@ module Shell
       return @combine_out_err
     end
 
+    def dry_run?()
+      return @dry_run
+    end
+
     def parse(options)
       return true if options.nil?() || options.empty?()
       # Parse each option
@@ -47,6 +52,8 @@ module Shell
         when :suppress_output       then @echo_output = false
         when :combine_out_err       then @combine_out_err = true
         when :split_out_err         then @combine_out_err = false
+        when :dry_run               then @dry_run = true
+        when :live_run              then @dry_run = false
         else
           return false                    # complain if an unknown option is supplied
         end
@@ -60,6 +67,7 @@ module Shell
     cum_stdout = ""
     cum_stderr = ""
     puts("$ #{cmd}") if options.echo_command?()
+    return "", "", true if options.dry_run?()
     if options.combine_out_err?()
       begin
         Open3.popen2e(cmd) {
@@ -134,6 +142,7 @@ module Shell
     cum_stderr = ""
     puts("$ ENV: #{environment}") if opt.echo_command?()
     puts("$ #{command}") if opt.echo_command?()
+    return "", "", true if opt.dry_run?()
     begin
       Open3.popen2e(environment, command) {
         |stdin, stdouterr, thr|
