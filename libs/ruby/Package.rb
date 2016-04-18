@@ -88,10 +88,16 @@ module Package
 
   def self.install_apt_preseed_packages(packages, options = nil)
     opt = Package::AptOptions.new(options)
-    packages.each() {
+    loc_pkg = []
+    if packages.respond_to?(:each)
+      loc_pkg = packages
+    else
+      loc_pkg << packages
+    end
+    loc_pkg.each() {
       |pkg|
-      Shell::execute_shell_commands("echo #{pkg} | debconf-set-selections")
-      Shell::execute_shell_command_with_environment({"DEBIAN_FRONTEND" => "noninteractive"}, "apt-get -y install #{opt.text()} #{pkg.split()[0]}")
+      Shell::execute_shell_commands("echo #{pkg} | debconf-set-selections", options)
+      Shell::execute_shell_command_with_environment({"DEBIAN_FRONTEND" => "noninteractive"}, "apt-get -y install #{opt.text()} #{pkg.split()[0]}", options)
     }
   end
 
