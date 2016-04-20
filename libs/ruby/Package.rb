@@ -80,6 +80,37 @@ module Package
     
   end
 
+  class GemOptions
+
+    def initialize(options)
+      reset()
+      parse(options)
+    end
+    
+    def reset()
+      @dry_run                    = false
+    end
+
+    def parse(options)
+      return true if options.nil?() || options.empty?()
+      # Parse each option
+      options.each() {
+        |opt|
+        case opt
+        when :dry_run                   then @dry_run = true
+        else
+          return false                  # complain if an unknown option is supplied
+        end
+      }
+      return true
+    end
+
+    def dry_run?()
+      return @dry_run
+    end
+    
+  end
+
   def self.install_apt_packages(packages, options = nil)
     opt = Package::AptOptions.new(options)
     all_packages = packages.respond_to?(:each) ? packages.join(" ") : packages
@@ -114,16 +145,27 @@ module Package
     end
   end
   
+  def self.install_ruby_gems(gems, options = nil)
+    opt = Package::GemOptions.new(options)
+    all_gems = gems.respond_to?(:each) ? gems.join(" ") : gems
+    # Note GemOptions and ShellOptions differ, but currently this should work
+    Shell::execute_shell_commands("gem install #{all_gems}", options)
+  end
+
 end # end of Package
 
 # Test cases
 if __FILE__ == $0
   puts("#"*80 + "\nInstall a single package")
-  Package::install_apt_packages("ruby", [:dry_run])
+  Package::install_ruby_gems("ruby", [:dry_run])
   puts("#"*80 + "\nInstall two packages")
   Package::install_apt_packages(["ruby", "emacs"], [:dry_run])
   puts("#"*80 + "\nInstall one dpkg")
   Package::install_dpkg_packages("ruby", [:dry_run])
   puts("#"*80 + "\nInstall two dpkgs")
   Package::install_dpkg_packages(["ruby", "emacs"], [:dry_run])
+  puts("#"*80 + "\nInstall a single gem")
+  Package::install_ruby_gems("haml", [:dry_run])
+  puts("#"*80 + "\nInstall two gems")
+  Package::install_ruby_gems(["haml", "kramdown"], [:dry_run])
 end
