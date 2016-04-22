@@ -70,9 +70,10 @@ module InstallHostnameAndAddress
       file.write("  netmask #{netmask}\n")
       file.write("  gateway #{gateway}\n")
       file.write("  dns-nameservers #{dns_master} #{dns_extras}\n")
-      file.write("  dns-search #{domain}\n\n\n")
+      file.write("  dns-search #{domain}\n\n")
     }
-    message(options, "]") if options.dry_run?()
+    # Cannot use message() for this as the __FIL__ prefix looks wrong.
+    puts("]") if options.dry_run?() && options.verbose?()
   end
 
   def self.message(options, message)
