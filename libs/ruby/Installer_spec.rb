@@ -8,6 +8,7 @@ describe "Installer::parse_options" do
      expect(options.install?()).to eq(true)
      expect(options.configure?()).to eq(true)
      expect(options.dry_run?()).to eq(false)
+     expect(options.verbose?()).to eq(false)
   end
 
   it "should accept --install" do
@@ -17,6 +18,7 @@ describe "Installer::parse_options" do
      expect(options.install?()).to eq(true)
      expect(options.configure?()).to eq(false)
      expect(options.dry_run?()).to eq(false)
+     expect(options.verbose?()).to eq(false)
   end
 
   it "should accept --configure" do
@@ -26,6 +28,17 @@ describe "Installer::parse_options" do
      expect(options.install?()).to eq(false)
      expect(options.configure?()).to eq(true)
      expect(options.dry_run?()).to eq(false)
+     expect(options.verbose?()).to eq(false)
+  end
+
+  it "should accept --verbose and default to --install and --configure" do
+     ARGV.clear()
+     ARGV << "--verbose"
+     options = Installer::parse_options()
+     expect(options.install?()).to eq(false)
+     expect(options.configure?()).to eq(true)
+     expect(options.dry_run?()).to eq(false)
+     expect(options.verbose?()).to eq(false)
   end
 
   it "should accept --dry-run and default to --install and --configure" do
@@ -35,6 +48,7 @@ describe "Installer::parse_options" do
      expect(options.install?()).to eq(true)
      expect(options.configure?()).to eq(true)
      expect(options.dry_run?()).to eq(true)
+     expect(options.verbose?()).to eq(false)
   end
 
 end
