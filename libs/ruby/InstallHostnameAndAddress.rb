@@ -1,9 +1,7 @@
 #!/usr/bin/ruby -w
 
 require "pathname.rb"
-
-MISC_DIR = Pathname.new(__FILE__).realpath().dirname().dirname().dirname()
-$LOAD_PATH.unshift(MISC_DIR + "libs" + "ruby")
+$LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname() + "libs" + "ruby")
 
 require "Configuration.rb"
 require "Host.rb"
