@@ -17,7 +17,7 @@ module Configuration
     return @@data[key]
   end
 
-end # end of Installer
+end # end of Configuration
 
 # Test cases
 if __FILE__ == $0
