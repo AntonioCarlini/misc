@@ -17,13 +17,15 @@ if [[ ! -f $1 ]]; then
 fi
 
 BUNDLE=$1
-
 shift
 
+# Everything OK. Install open-vm-tools.
+apt-get -y install --no-install-recommends --ignore-missing --dry-run open-vm-tools
+
+# Install VMware player
 OPTIONS="--eulas-agreed --required"
 if [[ ! -z $1 ]]; then
     OPTIONS=$@
 fi
 
-# Install VMware player
 bash $BUNDLE $OPTIONS
