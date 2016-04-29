@@ -67,7 +67,6 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  host = "flexpc"
   options = Installer::parse_options()
   puts("# Install advert blocking (dry run, verbose)")
   InstallAdvertBlocking::install(options)
