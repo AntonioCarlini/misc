@@ -16,6 +16,7 @@ module Shell
       @echo_output                = true
       @combine_out_err            = true
       @dry_run                    = false
+      @display_errors             = true
     end
 
     def stop_on_failure?()
@@ -38,6 +39,10 @@ module Shell
       return @dry_run
     end
 
+    def display_errors?()
+      return @display_errors
+    end
+
     def parse(options)
       return true if options.nil?() || options.empty?()
       # Parse each option
@@ -54,6 +59,7 @@ module Shell
         when :split_out_err         then @combine_out_err = false
         when :dry_run               then @dry_run = true
         when :live_run              then @dry_run = false
+        when :suppress_errors       then @display_errors = false
         else
           return false                    # complain if an unknown option is supplied
         end
@@ -78,10 +84,10 @@ module Shell
             puts("#{line}") if options.echo_output?()
             cum_stdout << line
           }
-          status &= thr.value.success?()
+          status = status && thr.value.success?()
         }
       rescue
-        puts("#{cmd.split().first()}: command not found")
+        puts("#{cmd.split().first()}: command not found") if options.display_errors?()
         status = false
       end
     else
@@ -99,10 +105,10 @@ module Shell
             puts("#{line}") if options.echo_output?()
             cum_stderr << line
           }
-          status &= thr.value.success?()
+          status = status && thr.value.success?()
         }
       rescue
-        puts("#{cmd.split().first()}: command not found")
+        puts("#{cmd.split().first()}: command not found") if options.display_errors?()
         status = false
       end
     end
@@ -113,12 +119,14 @@ module Shell
     opt = Shell::Options.new(options)
     cum_stdout = ""
     cum_stderr = ""
+    status = true
     if commands.respond_to?(:each)
       commands.each() {
         |cmd|
         cmd_out, cmd_err, cmd_status = self.execute_single_command(cmd, opt)
         cum_stdout << cmd_out
         cum_stderr << cmd_err
+        status = status && cmd_status
         if !cmd_status
           return cum_stdout, cum_stderr, false if opt.stop_on_failure?()
         end
@@ -128,11 +136,12 @@ module Shell
       cmd_out, cmd_err, cmd_status = self.execute_single_command(cmd, opt)
       cum_stdout << cmd_out
       cum_stderr << cmd_err
+      status = status && cmd_status
       if !cmd_status
         return cum_stdout, cum_stderr, false if opt.stop_on_failure?()
       end
     end
-    return cum_stdout, cum_stderr, true
+    return cum_stdout, cum_stderr, status
   end
 
   def self.execute_shell_command_with_environment(environment, command, options = [])
@@ -152,10 +161,10 @@ module Shell
             puts("#{line}") # This needs to happen for some reason
             cum_stdout << line
           }
-          status &= thr.value.success?()
+          status = status && thr.value.success?()
         }
     rescue
-      puts("#{command.split().first()}: command not found")
+      puts("#{command.split().first()}: command not found") if options.display_errors?()
       status = false
     end
     return cum_stdout, cum_stderr, status
