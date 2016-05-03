@@ -53,34 +53,27 @@ def main()
 
   exit(1) if bad_option
 
-  hosts = []
-  virtual_hosts = []
+  dns_files = []
+  
+  Dir.glob(File.dirname(__FILE__) + "/../systems/*.dns") {
+    |file|
+    zone_data = Host::Hosts.new(File.expand_path(file))
+  
+    hosts = []
+    virtual_hosts = []
 
-  Host::each_host() { |h| hosts << h }
-  Host::each_virtual_host() { |h| virtual_hosts << h }
+    zone_data.each_host() { |h| hosts << h }
+    zone_data.each_virtual_host() { |h| virtual_hosts << h }
 
-  # Sort by IP address
-  hosts.sort!() { |a,b| a.ipv4s[0].to_i() <=> b.ipv4s[0].to_i() }
-  virtual_hosts.sort!() { |a,b| a.ipv4s[0].to_i() <=> b.ipv4s[0].to_i() }
+    # Sort by IP address
+    hosts.sort!() { |a,b| a.ipv4s[0].to_i() <=> b.ipv4s[0].to_i() }
+    virtual_hosts.sort!() { |a,b| a.ipv4s[0].to_i() <=> b.ipv4s[0].to_i() }
 
-  display_dns_forward_file(hosts, virtual_hosts) if do_forward
-  display_dns_reverse_file(hosts, virtual_hosts) if do_reverse
+    DnsZoneFile::build_dns_forward_file($stdout, hosts, virtual_hosts, zone_data.domain()) if do_forward
+    DnsZoneFile::build_dns_reverse_file($stdout, hosts, virtual_hosts, zone_data.domain(), zone_data.subnet()) if do_reverse
+  }
+  
 end
-
-# Builds a DNS zone file.
-# Note that dns-compare-zone-files.rb depends on the output format used here.
-def display_dns_forward_file(hosts, virtual_hosts)
-  domain = Host::domain()
-  DnsZoneFile::build_dns_forward_file($stdout, hosts, virtual_hosts, domain)
-end
-
-# Note that dns-compare-zone-files.rb depends on the output format used here.
-def display_dns_reverse_file(hosts, virtual_hosts)
-  domain = Host::domain()
-  subnet = Host::subnet()
-  DnsZoneFile::build_dns_reverse_file($stdout, hosts, virtual_hosts, domain, subnet)
-end
-
 
 # Invoke the main function to kick off processing
 main()

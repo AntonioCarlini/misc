@@ -4,12 +4,6 @@ require 'ipaddr'
 require 'yaml'
 
 module Host
-  @@data = nil
-  @@hosts = []
-  @@virtual_hosts = []
-  @@domain = nil
-  @@netmask = nil
-  @@subnet = nil
 
   class Host
     attr_reader :comment
@@ -29,87 +23,76 @@ module Host
     end
   end
   
-  def self.load_data_once(file = nil)
-    return unless @@data.nil?()
-    if file.nil?()
-      file = File.dirname(__FILE__) + "/../../admin/systems/192.168.1.data"
+  class Hosts
+    attr_reader :domain
+    attr_reader :netmask
+    attr_reader :subnet
+
+    def initialize(zone_filename)
+      @data = YAML.load_file(zone_filename) 
+      @hosts = []
+      @virtual_hosts = []
+      
+      @domain = @data["domain"]
+      @netmask = IPAddr.new(@data["netmask"])
+      @subnet = IPAddr.new(@data["subnet"])
+
+      @data["hosts"].each() {
+        |node|
+        # Currently only support a single IPv4 address rather than a set of them
+        name = node[0]
+        data = node[1]
+        ipv4 = IPAddr.new(data["ipv4-address"])
+        os = data["os"]
+        hw = data["hardware"]
+        comment = data["comment"]
+        h = Host.new(name, [ ipv4 ], [], os, hw, comment)
+        @hosts << h
+      } unless @data["hosts"].nil?()
+
+      @data["virtual-hosts"].each() {
+        |node|
+        name = node[0]
+        data = node[1]
+        # TODO: this code should allow a virtual host to specify a hostname for the real host
+        ipv4 = IPAddr.new(data["ipv4-address"])
+        os = data["os"]
+        hw = data["hardware"]
+        comment = data["comment"]
+        h = Host.new(name, [ ipv4 ], [], os, hw, comment)
+        @virtual_hosts << h
+      } unless @data["virtual-hosts"].nil?()
     end
-    @@data = YAML.load_file(file)
-    @@data["hosts"].each() {
-      |node|
-      # Currently only support a single IPv4 address rather than a set of them
-      name = node[0]
-      data = node[1]
-      ipv4 = IPAddr.new(data["ipv4-address"])
-      os = data["os"]
-      hw = data["hardware"]
-      comment = data["comment"]
-      h = Host.new(name, [ ipv4 ], [], os, hw, comment)
-      @@hosts << h
-    }
-    @@data["virtual-hosts"].each() {
-      |node|
-      name = node[0]
-      data = node[1]
-      # TODO: this code should allow a virtual host to specify a hostname for the real host
-      ipv4 = IPAddr.new(data["ipv4-address"])
-      os = data["os"]
-      hw = data["hardware"]
-      comment = data["comment"]
-      h = Host.new(name, [ ipv4 ], [], os, hw, comment)
-      @@virtual_hosts << h
-    }
-    @@domain = @@data["domain"]
-    @@netmask = IPAddr.new(@@data["netmask"])
-    @@subnet = IPAddr.new(@@data["subnet"])
-  end       
 
-  def self.each_host()
-    self.load_data_once()
-    @@hosts.each() { |host| yield host }
-  end
+    def each_host()
+      @hosts.each() { |host| yield host }
+    end
 
-  def self.get_host(name)
-    self.load_data_once()
-    return @@hosts.find() { |h| h.name() == name }
-  end
+    def get_host(name)
+      return @hosts.find() { |h| h.name() == name }
+    end
 
-  def self.each_virtual_host()
-    self.load_data_once()
-    @@virtual_hosts.each() { |host| yield host }
-  end
+    def each_virtual_host()
+      @virtual_hosts.each() { |host| yield host }
+    end
 
-  def self.get_virtual_host(name)
-    self.load_data_once()
-    return @@virtual_hosts.find() { |h| h.name() == name }
-  end
-
-  def self.domain()
-    self.load_data_once()
-    return @@domain
-  end
-
-  def self.netmask()
-    self.load_data_once()
-    return @@netmask
-  end
-
-  def self.subnet()
-    self.load_data_once()
-    return @@subnet
+    def get_virtual_host(name)
+      return @virtual_hosts.find() { |h| h.name() == name }
+    end
   end
 
 end # end of Host
 
 # Test cases
 if __FILE__ == $0
-  puts("List all hosts\n")
-  Host::each_host() {
+  hosts = Host::Hosts.new(File.dirname(__FILE__) + "/../../admin/systems/192.168.1.flexbl.dns")
+  puts("#"*80 + "\nList all hosts\n")
+  hosts.each_host() {
     |host|
-    puts("Name: [%-10s] OS: [#{host.os()}]" % host.name())
+    puts("Name: [%-20s] OS: [#{host.os()}]" % host.name())
   }
 
-  puts("List one host (odrc2)")
-  h = Host::get_host("odrc2")
+  puts("#"*80 + "\nList one host (odrc2)")
+  h = hosts.get_host("odrc2")
   puts("name: #{h.name()} IPv4 address: #{h.ipv4s[0]} OS: #{h.os()} HW: #{h.hardware()}")
 end
