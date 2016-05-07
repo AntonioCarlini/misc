@@ -11,9 +11,9 @@ module InstallDnsServer
     apt_options = []
     apt_options << :dry_run if options.dry_run?()
 
-    apt = []
-    apt << "bind9"
-    apt << "dnsutils"
+    apt_packages = []
+    apt_packages << "bind9"
+    apt_packages << "dnsutils"
 
     # Install the necessary packages via apt
     message(options, "Installing apt packages")

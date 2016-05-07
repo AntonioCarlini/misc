@@ -38,11 +38,13 @@ module InstallHostnameAndAddress
   end
 
   def self.configure_ipv4_address(options, hostname)
+    return # TODO needs to be reworked to use new Host module interface
+=begin
     dns_master = Configuration::get_value("dns-master")
     dns_extras = Configuration::get_value("dns-extras")
     gateway = Configuration::get_value("ipv4-gateway")
-    netmask = Host::netmask()
-    domain = Host::domain()
+    netmask = Hosts::netmask()
+    domain = Hosts::domain()
 
     # Find the IPv4 address from the host name
     h = Host::get_host(hostname)
@@ -72,6 +74,7 @@ module InstallHostnameAndAddress
     }
     # Cannot use message() for this as the __FIL__ prefix looks wrong.
     puts("]") if options.dry_run?() && options.verbose?()
+=end
   end
 
   def self.message(options, message)

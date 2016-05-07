@@ -146,7 +146,7 @@ module Package
   end
   
   def self.install_ruby_gems(gems, options = nil)
-    opt = Package::GemOptions.new(options)
+    # TODO see below. opt = Package::GemOptions.new(options)
     all_gems = gems.respond_to?(:each) ? gems.join(" ") : gems
     # Note GemOptions and ShellOptions differ, but currently this should work
     Shell::execute_shell_commands("gem install #{all_gems}", options)

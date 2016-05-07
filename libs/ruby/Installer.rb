@@ -22,7 +22,7 @@ module Installer
       @opts << [ '--install',         '-i', GetoptLong::NO_ARGUMENT ]
       @opts << [ '--configure',       '-c', GetoptLong::NO_ARGUMENT ]
       @opts << [ '--dry-run',         '-d', GetoptLong::NO_ARGUMENT ]
-      @opts << [ '--verbose',         '-n', GetoptLong::NO_ARGUMENT ]
+      @opts << [ '--verbose',         '-v', GetoptLong::NO_ARGUMENT ]
 
     end
 

@@ -3,10 +3,11 @@
 require "pathname.rb"
 $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname() + "libs" + "ruby")
 
+require "InstallDnsServer.rb"
 require "Installer.rb"
-require "InstallNisServer.rb"
 require "InstallMinimalSystem.rb"
 require "InstallMuninMaster.rb"
+require "InstallNisServer.rb"
 require "InstallWebServer.rb"
 require "Package.rb"
 
@@ -67,17 +68,15 @@ def main()
   assume_in_repo = false
 
   options = Installer::parse_options(
-    [ '--verbose',         '-v', GetoptLong::NO_ARGUMENT ],
-    [ '--dry-run',         '-n', GetoptLong::NO_ARGUMENT ],
     [ '--bundle',          '-b', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--log',             '-l', GetoptLong::OPTIONAL_ARGUMENT ],
     [ '--nolog',           '-L', GetoptLong::NO_ARGUMENT ],
-    [ '--all',             '-a', GetoptLong::NO_ARGUMENT ],
-    [ '--workstation',     '-w', GetoptLong::NO_ARGUMENT ],
-    [ '--development',     '-d', GetoptLong::NO_ARGUMENT ],
-    [ '--host',            '-h', GetoptLong::REQUIRED_ARGUMENT ],
+    [ '--all',             '-A', GetoptLong::NO_ARGUMENT ],
+    [ '--workstation',     '-W', GetoptLong::NO_ARGUMENT ],
+    [ '--development',     '-D', GetoptLong::NO_ARGUMENT ],
+    [ '--host',            '-H', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--ipv4-address',    '-4', GetoptLong::REQUIRED_ARGUMENT ],
-    [ '--server',          '-s', GetoptLong::OPTIONAL_ARGUMENT]
+    [ '--server',          '-S', GetoptLong::OPTIONAL_ARGUMENT]
   ) {
     |opt, arg|
     case opt
@@ -161,7 +160,7 @@ def main()
   end
 
   actions = Actions.new(log_file, options.dry_run?())
-
+  
   actions.set_host(host)
   actions.set_ipv4_address(ipv4_address)
 
@@ -193,6 +192,8 @@ end
 #+
 # Actions class holds a set of context information regarding what needs to be done.
 #-
+
+# Note: inheriting from Installer::Options is not the right thing to do and needs to be fixed. TODO.
 class Actions < Installer::Options
 
   attr_reader :apt_packages
@@ -203,6 +204,7 @@ class Actions < Installer::Options
   attr_reader :ipv4_address
 
   def initialize(log_file, dry_run)
+    super()
     @apt_packages = []
     @apt_preseed_packages = []
     @dpkg_packages = []
@@ -363,13 +365,13 @@ def configure_advert_blocking(actions)
 end
 
 def configure_debian(actions)
-  InstallMinimalSystem::configure(options, actions.host(), true)
+  InstallMinimalSystem::configure(actions, actions.host(), true)
 end
 
 def configure_dns_server(actions)
-  puts("TODO:#{__method__} ")
+  puts("Performing: #{__method__} ")
   return if actions.dry_run?()
-  InstallDnsServer::configure(options)
+  InstallDnsServer::configure(actions)
 end
 
 def configure_japanese_language_support(actions)
