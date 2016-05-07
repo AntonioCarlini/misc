@@ -50,7 +50,8 @@ module InstallMinimalSystem
     # sudo select-editor
     # sudo visudo
     # add this line: $USER ALL=(ALL:ALL) NOPASSWD: ALL
-
+    # /etc/ssh/sshd_config
+    # PermitRootLogin: no
     message(options, "Configure timezone")
     Shell::execute_shell_commands("cp /usr/share/zoneinfo/Europe/London /etc/localtime", shell_options)
   end

@@ -3,9 +3,14 @@
 require "pathname.rb"
 $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname() + "libs" + "ruby")
 
-require 'getoptlong'
-
+require "Installer.rb"
+require "InstallNisServer.rb"
+require "InstallMinimalSystem.rb"
+require "InstallMuninMaster.rb"
+require "InstallWebServer.rb"
 require "Package.rb"
+
+require 'getoptlong'
 
 def main()
   #+
@@ -44,7 +49,24 @@ def main()
   #    Turn on verbose mode (currently does nothing)
   #-
 
-  options = GetoptLong.new(
+  # TODO: Use Installer
+
+  do_workstation = false
+  do_development = false
+  do_server = false
+  do_nis_server = false
+  do_web_server = false
+  do_dns_server = false
+  do_munin_master = false
+  do_wiki_server = false
+  log_file = nil
+  host = nil
+  ipv4_address = nil
+  bad_option = false
+  bundle = nil
+  assume_in_repo = false
+
+  options = Installer::parse_options(
     [ '--verbose',         '-v', GetoptLong::NO_ARGUMENT ],
     [ '--dry-run',         '-n', GetoptLong::NO_ARGUMENT ],
     [ '--bundle',          '-b', GetoptLong::REQUIRED_ARGUMENT ],
@@ -56,30 +78,9 @@ def main()
     [ '--host',            '-h', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--ipv4-address',    '-4', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--server',          '-s', GetoptLong::OPTIONAL_ARGUMENT]
-  )
-
-  do_workstation = false
-  do_development = false
-  do_server = false
-  do_nis_server = false
-  do_web_server = false
-  do_dns_server = false
-  do_munin_master = false
-  do_wiki_server = false
-  do_verbose = false
-  log_file = nil
-  dry_run = false
-  host = nil
-  ipv4_address = nil
-  bad_option = false
-  bundle = nil
-  assume_in_repo = false
-
-  options.each() {
+  ) {
     |opt, arg|
     case opt
-    when '--dry-run'
-      dry_run = true
     when '--bundle'
       bundle = arg.dup()
     when '--host'
@@ -125,8 +126,6 @@ def main()
       log_file = nil
     when '--assume-in-repo'
       assume_in_repo = true
-    when '--verbose'
-      do_verbose = true
     else
       $stderr.puts("Unrecognised option: [#{opt}]")
       bad_option = true
@@ -161,7 +160,7 @@ def main()
     end
   end
 
-  actions = Actions.new(log_file, dry_run)
+  actions = Actions.new(log_file, options.dry_run?())
 
   actions.set_host(host)
   actions.set_ipv4_address(ipv4_address)
@@ -177,21 +176,6 @@ def main()
   prepare_nis_server(actions)       if do_nis_server
   prepare_web_server(actions)       if do_web_server
   prepare_wiki_server(actions)      if do_wiki_server
-
-  # Install the necessary packages via apt
-  apt_options = []
-  apt_options << :dry_run if dry_run
-  Package::install_apt_packages(actions.apt_packages(), apt_options)
-
-  # Install packages that need presseding
-  apt_options = []
-  apt_options << :dry_run if dry_run
-  Package::install_apt_preseed_packages(actions.apt_preseed_packages(), apt_options)
-
-  # Install the necessary packages via dpkg
-  dpkg_options = []
-  dpkg_options << :dry_run if dry_run
-  Package::install_dpkg_packages(actions.dpkg_packages(), dpkg_options)
 
   # select-editor?
 
@@ -209,7 +193,7 @@ end
 #+
 # Actions class holds a set of context information regarding what needs to be done.
 #-
-class Actions
+class Actions < Installer::Options
 
   attr_reader :apt_packages
   attr_reader :apt_preseed_packages
@@ -314,24 +298,8 @@ def prepare_advert_blocking(actions)
 end
 
 def prepare_debian(actions)
-  apt = []
-  apt << "emacs"                     # wheezy has emacs23, jessie has emcs24, so be non-specific here
-  apt << "lsb-release"
-  apt << "munin-node"
-  apt << "nano"
-  apt << "nfs-common"
-  apt << "nfs-kernel-server"
-  apt << "ntp"
-  apt << "openssh-server"
-  apt << "portmap"
-  apt << "sudo"
-  actions.add_apt_preseed_package("nis", "nis/domain", "string", "flexbl")
-  actions.add_apt_packages(apt)
-  actions.add_config_function(:configure_hostname)
-  actions.add_config_function(:configure_ip_address)
-  actions.add_config_function(:configure_nis_client)
-  actions.add_config_function(:configure_sudo)
-    actions.add_config_function(:configure_timezone)
+  InstallMinimalSystem::install(actions)
+  actions.add_config_function(:configure_debian)
 end
 
 def prepare_development(actions)
@@ -339,10 +307,7 @@ def prepare_development(actions)
 end
 
 def prepare_dns_server(actions)
-  apt = []
-  apt << "bind9"
-  apt << "dnsutils"
-  actions.add_apt_packages(apt)
+  InstallDnsServer::install(actions)
   actions.add_config_function(:configure_dns_server)
 end
 
@@ -355,22 +320,12 @@ def prepare_japanese_language_support(actions)
 end
 
 def prepare_munin_master(actions)
-  apt = []
-  apt << "apache2"
-  apt << "apache2-utils"
-  apt << "libapache2-mod-fcgid"
-  apt << "libcgi-fast-perl"
-  apt << "munin"
-  apt << "munin-plugins-extra"
-  actions.add_apt_packages(apt)
+  InstallMuninMaster::install(actions)
   actions.add_config_function(:configure_munin_master)
 end
 
 def prepare_nis_server(actions)
-  apt = []
-  apt << "nis"
-  apt << "portmap"
-  actions.add_apt_packages(apt)
+  InstallNisServer::install(actions)
   actions.add_config_function(:configure_nis_server)
 end
 
@@ -387,14 +342,7 @@ def prepare_vmware_tools(actions)
 end
 
 def prepare_web_server(actions)
-  prepare_mysql(actions)
-  apt = []
-  apt << "apache2"
-  apt << "apache2-doc"
-  apt << "apache2-utils"
-  apt << "php5"
-  apt << "php5-mysql"
-  actions.add_apt_packages(apt)
+  InstallWebServer::install(actions)
 end
 
 def prepare_wiki_server(actions)
@@ -402,34 +350,9 @@ def prepare_wiki_server(actions)
 end
 
 def prepare_workstation(actions)
-  apt = []
-  # apt << "knode"                   # not available on jessie (at least not on arm64)
-  apt << "dovecot-imapd"
-  apt << "dovecot-pop3d"
-  apt << "emacs"                     # wheezy has emacs23, jessie has emcs24, so be non-specific here
-  apt << "gconf-editor"
-  apt << "git-core"
-  apt << "git-doc"
-  apt << "keepassx"
-  apt << "lame"                      # needed by anki
-  apt << "mercurial"
-  apt << "ntp"
-  apt << "python-sqlalchemy"         # needed by anki
-  apt << "rdesktop"
 
-  actions.add_apt_packages(apt)
+  InstalLWorkstation::install(actions)
 
-  dpkg_packages = []
-  dpkg_packages << "anki"
-  dpkg_packages << "google-chrome"
-  actions.add_dpkg_packages(apt)
-  
-  prepare_web_server(actions)
-  prepare_mysql(actions)
-  prepare_vmware_tools(actions)
-  prepare_wiki_server(actions)
-  prepare_japanese_language_support(actions)
-  prepare_advert_blocking(actions)
 end
 
 def configure_advert_blocking(actions)
@@ -439,51 +362,14 @@ def configure_advert_blocking(actions)
   Shell::execute_shell_commands("#{path}/install-advert-blocking-hosts-file.sh")
 end
 
+def configure_debian(actions)
+  InstallMinimalSystem::configure(options, actions.host(), true)
+end
+
 def configure_dns_server(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
-  # Configure the zone file /etc/bind/zones/master/flexbl.local as follows:
-  # Configure the reverse mapping /etc/bind/zones/master/192.168.1.rev as follows:
-  # Point bind9 at the zone file by editing /etc/bind/named.conf.local:
-end
-
-def configure_hostname(actions)
-  puts("Performing :#{__method__}")
-  return if actions.dry_run?()
-  host = actions.host()
-  if host.nil?()
-    puts("No host name configuration required")
-    return
-  end
-
-  # Set up the require /etc/hostname file
-  File.open("/etc/hostname", "w") { |file| file.write("#{host}\n") }
-
-  # Edit the existing /etc/hosts file to change the current host to the new one
-  Shell::execute_shell_commands("cp /etc/hosts /etc/hosts.original; cat /etc/hosts.original | sed -e 's/127.0.1.1.*/127.0.1.1       #{host}/' > /etc/hosts")
-end
-
-def configure_ip_address(actions)
-  puts("TODO:#{__method__} ")
-  return if actions.dry_run?()
-  # Set a new IP address if required
-  this_ip = actions.ipv4_address()
-  return if this_ip.nil?()
-  dns_master = "192.168.1.105"
-  gateway = "192.168.1.101"
-  File.open("/etc/network/interfaces", "w") {
-    |file|
-    file.write("# interfaces(5) file used by ifup(8) and ifdown(8)\n\n")
-    file.write("auto lo\n")
-    file.write("iface lo inet loopback\n\n")
-    file.write("auto eth0\n")
-    file.write("iface eth0 inet static\n")
-    file.write("  address #{this_ip}\n")
-    file.write("  netmask 255.255.255.0\n")
-    file.write("  gateway #{gateway}\n")
-    file.write("  dns-nameservers #{dns_master} 8.8.8.8\n")
-    file.write("  dns-search flexbl.co.uk\n\n\n")
-  }
+  InstallDnsServer::configure(options)
 end
 
 def configure_japanese_language_support(actions)
@@ -495,82 +381,13 @@ end
 def configure_munin_master(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
-  # /etc/munin/munin.conf: enable directories ; change localhost.localdomain to munin-id
-  cmd = "cat /etc/munin/munin.conf | sed -r -e 's/#(db|html|log|run|tmpl)dir/\\1dir/g' -e 's/localhost.localdomain/MuninMaster/' > /etc/munin/munin.conf.mod"
-  Shell::execute_shell_commands(cmd)
-  # Shell::execute_shell_commands("mv /etc/munin/munin.conf.mod /etc/munin/munin.conf")
-  Shell::execute_shell_commands("mkdir -p /var/www/munin ; chown munin:munin /var/www/munin")
-  Shell::execute_shell_commands("sudo a2enmod fcgid")
-  # /etc/munin/apache.conf:
-  #  Alias /munin /var/www/munin
-  #  <Directory /var/www/munin ...
-  # etc
-  Shell::execute_shell_commands("service apache2 restart")
-  Shell::execute_shell_commands("service munin-node restart")
-  # restart apache2 ; restart munin-node
-end
-
-def configure_nis_client(actions)
-  puts("Processing:#{__method__} ")
-  return if actions.dry_run?()
-  Shell::execute_shell_commands("domainname flexbl")
+  InstallMuninMaster::configure(actions)
 end
 
 def configure_nis_server(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
-  # Edit /etc/default/nis and change the NISMASTER line to
-  # NISSERVER=master
-  # domainname flexbl
-  # server:~# cat /etc/nsswitch.conf
-  # passwd: compat
-  # group: compat
-  # shadow: compat
-  # netgroup: nis
-  # /usr/lib/yp/ypinit -m
-  # After a reboot:
-  # /etc/init.d/rpcbind start
-  # /etc/init.d/nis start
-end
-
-def configure_sudo(actions)
-  puts("TODO:#{__method__} ")
-  return if actions.dry_run?()
-  #setup sudo
-  #sudo select-editor
-  #sudo visudo
-  #add this line: $USER ALL=(ALL:ALL) NOPASSWD: ALL
-end
-
-def configure_timezone(actions)
-  puts("TODO:#{__method__} ")
-  return if actions.dry_run?()
-  Shell::execute_shell_commands("cp /usr/share/zoneinfo/Europe/London /etc/localtime")
-end
-
-# TODO: consider VMTools?
-# report time taken for each install and success/failure
-# support various options (shrugged, HDS-VPN, testing)
-
-# configure NIS server
-# configure NIS client
-
-def install_vmtools()
-  puts("VMware Tools installer not yet implemented.")
-  # Need the virt-what tool to decide whether this is vmware or not
-  if 'virt-what' != "vmware"
-    puts("Not running under VMware")
-    return
-  end
-=begin
-# persuade the CD to mount ...                                                                             
-use mount to find out what has /dev/sr0 mounted and unmount it
-mkdir tmp                                                                                                  
-cd tmp                                                                                                     
-tar zxvf /media/antonioc/VMware\ Tools\VMWareTools-9.2.2-893683.tar.gz                                     
-cd vmware-tools-distrib                                                                                    
-sudo ./vmware-install.pl -d
-=end
+  InstallNisServer::configure(actions)
 end
 
 def configure_mediawiki(script_dir)
