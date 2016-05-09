@@ -38,13 +38,9 @@ module InstallHostnameAndAddress
   end
 
   def self.configure_ipv4_address(options, hostname)
-    return # TODO needs to be reworked to use new Host module interface
-=begin
     dns_master = Configuration::get_value("dns-master")
     dns_extras = Configuration::get_value("dns-extras")
     gateway = Configuration::get_value("ipv4-gateway")
-    netmask = Hosts::netmask()
-    domain = Hosts::domain()
 
     # Find the IPv4 address from the host name
     h = Host::get_host(hostname)
@@ -67,14 +63,13 @@ module InstallHostnameAndAddress
       file.write("auto eth0\n")
       file.write("iface eth0 inet static\n")
       file.write("  address #{ipv4_address}\n")
-      file.write("  netmask #{netmask}\n")
+      file.write("  netmask #{h.netmask()}\n")
       file.write("  gateway #{gateway}\n")
       file.write("  dns-nameservers #{dns_master} #{dns_extras}\n")
-      file.write("  dns-search #{domain}\n\n")
+      file.write("  dns-search #{h.domain()}\n\n")
     }
     # Cannot use message() for this as the __FIL__ prefix looks wrong.
     puts("]") if options.dry_run?() && options.verbose?()
-=end
   end
 
   def self.message(options, message)
