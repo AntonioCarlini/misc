@@ -5,6 +5,8 @@ $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname
 
 require "Package.rb"
 
+require "fileutils.rb"
+
 module InstallDnsServer
   
   def self.install(options)
@@ -21,9 +23,10 @@ module InstallDnsServer
   end
   
   def self.configure(options)
-    shell_options = []
-    shell_options << :dry_run if options.dry_run?()
-
+    mkpath_options = {}
+    mkpath_options[:verbose] = true if options.verbose?()
+    mkpath_options[:noop] = true if options.dry_run?()
+    FileUtils.mkpath('/etc/bind/zones/master', mkpath_options)
   end
 
   def self.message(options, message)
