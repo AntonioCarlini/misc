@@ -15,6 +15,7 @@ module InstallWorkstation
 
     apt = []
     # apt << "knode"                   # not available on jessie (at least not on arm64)
+    apt << "ack-grep"
     apt << "dovecot-imapd"
     apt << "dovecot-pop3d"
     apt << "emacs"                     # wheezy has emacs23, jessie has emcs24, so be non-specific here
@@ -31,10 +32,9 @@ module InstallWorkstation
 
     InstallAdvertBlocking::install(options)
     InstallWebServer::install(options)
-    # prepare_web_server(actions)
-    # prepare_vmware_tools(actions)
-    # prepare_wiki_server(actions)
-    # prepare_japanese_language_support(actions)
+
+    # TODO: prepare_vmware_tools(actions)
+    # TODO: prepare_japanese_language_support(actions)
     
     # Install the necessary packages via apt
     message(options, "Installing apt packages")
@@ -56,12 +56,16 @@ module InstallWorkstation
     shell_options = []
     shell_options << :dry_run if options.dry_run?()
 
+    
     InstallAdvertBlocking::install(options)
     InstallWebServer::configure(options)
 
-    # prepare_vmware_tools(actions)
-    # prepare_wiki_server(actions)
-    # prepare_japanese_language_support(actions)
+    # TODO: prepare_vmware_tools(actions)
+    # TODO: prepare_wiki_server(actions)
+    # TODO: prepare_japanese_language_support(actions)
+
+    # Rename the ack-grep command to the shorter "ack"
+    Shell::execute_shell_commands("dpkg-divert --local --divert /usr/bin/ack --rename --add /usr/bin/ack-grep", shell_options)
   end
 
   def self.message(options, message)
