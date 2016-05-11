@@ -39,7 +39,7 @@ module InstallMinimalSystem
 
     do_host = !hostname.nil?() && !hostname.empty?()
     message(options, "Configure host name") if options.verbose?() && do_host
-    InstallHostnameAndAddress::configure(options, hostname, do_ipv4)
+    InstallHostnameAndAddress::configure(options, hostname) if do_host
 
     message(options, "Configure nis client")
     InstallNisClient::configure(options)

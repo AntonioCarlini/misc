@@ -13,14 +13,16 @@ module InstallHostnameAndAddress
     message(options, "Nothing to install for hostname and IP address")
   end
   
-  def self.configure(options, hostname, do_ipv4)
+  def self.configure(options, hostname)
 
     if !hostname.nil?() && !hostname.empty?()
       message(options, "Configure host name")
       configure_hostname(options, hostname)
+    else
+      message(options, "No hostname to configure")
     end
 
-    configure_ipv4_address(options, hostname) if do_ipv4
+    configure_ipv4_address(options, hostname)
   end
     
   def self.configure_hostname(options, hostname)
@@ -87,5 +89,5 @@ if __FILE__ == $0
   options = Installer::parse_options()
   host = "flexpc"
   puts("# Configure host #{host}, no address (dry run, verbose) ")
-  InstallHostnameAndAddress::configure(options, "flexpc", false)
+  InstallHostnameAndAddress::configure(options, "flexpc")
 end
