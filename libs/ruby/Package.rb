@@ -117,19 +117,19 @@ module Package
     Shell::execute_shell_commands("apt-get -y install #{opt.text()} #{all_packages}")
   end
 
-  def self.install_apt_preseed_packages(packages, options = nil)
+  def self.install_apt_preseed_package(preseeds, package, options = nil)
     opt = Package::AptOptions.new(options)
-    loc_pkg = []
-    if packages.respond_to?(:each)
-      loc_pkg = packages
+    loc_seeds = []
+    if preseeds.respond_to?(:each)
+      loc_seeds = preseeds
     else
-      loc_pkg << packages
+      loc_seeds << preseeds
     end
-    loc_pkg.each() {
+    loc_seeds.each() {
       |pkg|
       Shell::execute_shell_commands("echo #{pkg} | debconf-set-selections", options)
-      Shell::execute_shell_command_with_environment({"DEBIAN_FRONTEND" => "noninteractive"}, "apt-get -y install #{opt.text()} #{pkg.split()[0]}", options)
     }
+    Shell::execute_shell_command_with_environment({"DEBIAN_FRONTEND" => "noninteractive"}, "apt-get -y install #{opt.text()} #{package}", options)
   end
 
   def self.install_dpkg_packages(packages, options)
