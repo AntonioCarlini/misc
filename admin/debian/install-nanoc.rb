@@ -19,6 +19,6 @@ gems << "kramdown"
 gem_options = []
 gem_options << :dry_run if options.dry_run?()
 
-# Install the nis package silently by preseeding the required values.
+# Install the ruby gems.
 Package::install_ruby_gems(gems, gem_options)
 
