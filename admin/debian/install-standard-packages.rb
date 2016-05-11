@@ -6,6 +6,7 @@ $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname
 require "InstallDnsServer.rb"
 require "Installer.rb"
 require "InstallMinimalSystem.rb"
+require "InstallMantisBT.rb"
 require "InstallMuninMaster.rb"
 require "InstallNisServer.rb"
 require "InstallWebServer.rb"
@@ -59,6 +60,7 @@ def main()
   do_web_server = false
   do_dns_server = false
   do_munin_master = false
+  do_mantis = false
   do_wiki_server = false
   log_file = nil
   host = nil
@@ -94,6 +96,7 @@ def main()
       do_dns_server = true
       do_web_server = true
       do_wiki_server = true
+      do_mantis = true
     when '--workstation'
       do_workstation = true
     when '--development'
@@ -103,16 +106,18 @@ def main()
       arg.downcase().split(",").each() {
         |server|
         case server
-        when 'nis'
-          do_nis_server = true
         when 'dns'
           do_dns_server = true
+        when 'mantis'
+          do_mantis = true
+        when 'munin'
+          do_munin_master = true
+        when 'nis'
+          do_nis_server = true
         when 'web'
           do_web_server = true
         when 'wiki'
           do_wiki_server = true
-        when 'munin'
-          do_munin_master = true
         end
       }
     when '--log'
@@ -175,7 +180,8 @@ def main()
   prepare_nis_server(actions)       if do_nis_server
   prepare_web_server(actions)       if do_web_server
   prepare_wiki_server(actions)      if do_wiki_server
-
+  prepare_mantis(actions)           if do_mantis
+  
   # select-editor?
 
   # Go through all the configuration functions, one by one.
@@ -321,6 +327,11 @@ def prepare_japanese_language_support(actions)
   actions.add_config_function(:configure_japanese_language_support)
 end
 
+def prepare_mantis(actions)
+  InstallMantisBT::install(actions)
+  actions.add_config_function(:configure_mantis)
+end
+
 def prepare_munin_master(actions)
   InstallMuninMaster::install(actions)
   actions.add_config_function(:configure_munin_master)
@@ -378,6 +389,12 @@ def configure_japanese_language_support(actions)
   puts("TODO:#{__method__} ")
   return if actions.dry_run?()
   # Go to Preferences -> Language Support
+end
+
+def configure_mantis(actions)
+  puts("Performing:#{__method__} ")
+  return if actions.dry_run?()
+  InstallMantisBT::configure(actions)
 end
 
 def configure_munin_master(actions)
