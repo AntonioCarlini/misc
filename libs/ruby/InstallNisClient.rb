@@ -16,7 +16,7 @@ module InstallNisClient
     # Install the nis package silently by preseeding the required values.
     message(options, "Installing (pre-seeded) apt packages")
     nis_domain = Configuration::get_value("nis-domain")
-    Package::install_apt_preseed_packages("nis nis/domain string #{nis_domain}", "nis", apt_options)
+    Package::install_apt_preseed_package("nis nis/domain string #{nis_domain}", "nis", apt_options)
   end
   
   def self.configure(options)
