@@ -108,6 +108,41 @@ module DnsZoneFile
     conf_file.write("\n")
   end
 
+  # Read a zone file, but strip out excess whitespace, remove comments and remove the serial number.
+  # Note that this depends on knowledge of the output format used build_dns_forward_file and build_dns_reverse_file
+  def self.read_zone_file(file)
+    # Read the file. Zone files are expected to be less than 1MiB in size.
+    # Replace multiple spaces with one space.
+    # Remove the line that contains the Serial number
+    # Remove everything after the first ";" until the end of a line.
+    # Remove completely empty lines.
+    data = IO.read(file).gsub(/ +/, " ").sub(/^\s*\d+\s*;\s*Serial*$\n/, "").gsub(/;.*/, "").gsub(/^\s*$\n/, "")
+    return data
+  end
+
+  # Compare the two zone files, ignoring things that don't matter (e.g. whitespace, comments)
+  # and things that are expected to change (currently only the serial number).
+  def self.zone_files_functionally_identical?(first, second)
+    error_seen = false
+    begin
+      first_data = read_zone_file(first)
+    rescue
+      $stderr.puts("Failed to read #{first}")
+      error_seen = true
+    end
+    
+    begin
+      second_data = read_zone_file(second)
+    rescue
+      $stderr.puts("Failed to read #{second}")
+      error_seen = true
+    end
+  
+    return false if error_seen
+  
+    return first_data == second_data
+  end
+
   def self.perform_sanity_check()
     # Quick sanity check.
     #
