@@ -7,6 +7,7 @@ require "Configuration.rb"
 require "DnsZoneFile.rb"
 require "Host.rb"
 
+require 'fileutils'
 require 'getoptlong'
 
 def main()
@@ -106,10 +107,51 @@ def main()
       DnsZoneFile::add_to_configuration_file(conf_file, forward_zone_file_name, reverse_zone_file_name, zone_data.domain(), zone_data.subnet())
     }
   }
+
+  # Prepare options for FileUtils calls.
+  file_options = {}
+  file_options[:verbose] = true if verbose
+  file_options[:noop] = true if dry_run
+  gen_file_options = file_options.dup()
+  gen_file_options.delete(:noop)   # Used for file operations (other than move) on a generated file
+
+  # Remove identical files, move the rest to the active bind area.
+  # Note that the config needs to be handled specially: it moves to a different area and moves after everything else.
+  # Further note that out-of-date zone files are NOT removed from the /etc/bind directory tree.
+  update_config_file = false
+  config_dns_file = nil
+  config_gen_file = nil
+  Dir.glob(temp_dir + "*") {
+    |file|
+    basename = File.basename(file)
+    gen_file = File.expand_path(file)
+    if basename == "named.conf.local"
+      config_dns_file = "/etc/bind/#{basename}"
+      config_gen_file = gen_file.dup()
+      if FileUtils.identical?(config_gen_file, config_dns_file)
+        puts("config file #{config_dns_file} unchanged.") if verbose
+        FileUtils.rm(gen_file, gen_file_options)
+      else
+        puts("config file #{config_dns_file} to be updated.") if verbose
+        update_config_file = true
+      end
+    else
+      dns_file = "/etc/bind/zones/master/#{basename}"
+      if DnsZoneFile::zone_files_functionally_identical?(gen_file, dns_file)
+        puts("zone file #{dns_file} unchanged.") if verbose
+        FileUtils.rm(gen_file, gen_file_options)
+      else
+        puts("zone file #{dns_file} to be updated.") if verbose
+        FileUtils.mv(gen_file, dns_file, file_options)
+      end
+    end
+  }
+  # Now that the zone files are present and correct, move the config file (if required)
+  FileUtils.mv(config_gen_file, config_dns_file, file_options) if update_config_file
+  
   # TODO
-  # Remove identical files, move the rest to the active bind area
   # Get bind to notice
-  # Dir.rmdir(temp_dir)  
+  FileUtils.rmdir(temp_dir, gen_file_options)  
 end
 
 # Invoke the main function to kick off processing
