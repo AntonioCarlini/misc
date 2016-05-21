@@ -84,26 +84,24 @@ module DnsZoneFile
   end
 
   def self.write_configuration_file_header(conf_file)
-    conf_file.puts("; Do NOT edit manually - your changes will be overwritten!")
-    conf_file.puts(";")
-    conf_file.puts("; Written by #{File.basename(__FILE__)} on behalf of #{File.basename($0)}.")
-    conf_file.puts(";")
+    conf_file.puts("// Do NOT edit manually - your changes will be overwritten!")
+    conf_file.puts("//")
+    conf_file.puts("// Written by #{File.basename(__FILE__)} on behalf of #{File.basename($0)}.")
+    conf_file.puts("//")
   end
 
   # file is expected to be a File (e.g. $stdout)
   # domain is the fully qualified domain name (e.g. flexbl.co.uk)
   # subnet is the subnet (e.g. 192.168.1.0)
   def self.add_to_configuration_file(conf_file, forward_filename, reverse_filename, domain, subnet)
-    conf_file.write(%Q[zone "#{domain}" {"\n])
+    conf_file.write(%Q[zone "#{domain}" {\n])
     conf_file.write(%Q[    type master;\n])
     conf_file.write(%Q[    file "/etc/bind/zones/master/#{forward_filename}";\n])
-    conf_file.write(%Q[    allow-query any;\n])
     conf_file.write(%Q[};\n])
     conf_file.write("\n")
-    conf_file.write(%Q[zone "#{subnet}" {"\n])
+    conf_file.write(%Q[zone "#{subnet}" {\n])
     conf_file.write(%Q[    type master;\n])
     conf_file.write(%Q[    file "/etc/bind/zones/master/#{reverse_filename}";\n])
-    conf_file.write(%Q[    allow-query any;\n])
     conf_file.write(%Q[};\n])
     conf_file.write("\n")
   end
