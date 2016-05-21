@@ -9,7 +9,7 @@ module DnsZoneFile
   # virtual_hosts is an Array of Host
   # domain is the fully qualified domain name
   def self.build_dns_forward_file(file, hosts, virtual_hosts, domain)
-    serial = make_serial_number()
+    serial, full_serial = make_serial_number()
     refresh = "%8.8s" % get_refresh_interval()
     retry_delay = "%8.8s" % get_retry_interval()
     expiration = "%8.8s" % get_expiration_interval()
@@ -20,7 +20,7 @@ module DnsZoneFile
     file.puts(";")
     file.puts("@       IN      SOA     #{domain}. root.#{domain}. (")
     # Note that dns-compare-zone-files.rb depends on the output format of the Serial line here
-    file.puts("                     #{serial}         ; Serial")
+    file.puts("                     #{serial}         ; Serial (#{full_serial})")
     file.puts("                            #{refresh}         ; Refresh")
     file.puts("                            #{retry_delay}         ; Retry")
     file.puts("                            #{expiration}         ; Expire")
@@ -54,7 +54,7 @@ module DnsZoneFile
   # domain is the fully qualified domain name (e.g. flexbl.co.uk)
   # subnet is the subnet (e.g. 192.168.1.0)
   def self.build_dns_reverse_file(file, hosts, virtual_hosts, domain, subnet)
-    serial = make_serial_number()
+    serial, full_serial = make_serial_number()
     refresh = "%8.8s" % get_refresh_interval()
     retry_delay = "%8.8s" % get_retry_interval()
     expiration = "%8.8s" % get_expiration_interval()
@@ -65,7 +65,7 @@ module DnsZoneFile
     file.puts(";")
     file.puts("@       IN      SOA     #{domain}. root.#{domain}. (")
     # Note that dns-compare-zone-files.rb depends on the output format of the Serial line here
-    file.puts("                     #{serial}         ; Serial")
+    file.puts("                     #{serial}         ; Serial (#{full_serial})")
     file.puts("                            #{refresh}         ; Refresh")
     file.puts("                            #{retry_delay}         ; Retry")
     file.puts("                            #{expiration}         ; Expire")
@@ -114,7 +114,7 @@ module DnsZoneFile
     # Remove the line that contains the Serial number
     # Remove everything after the first ";" until the end of a line.
     # Remove completely empty lines.
-    data = IO.read(file).gsub(/ +/, " ").sub(/^\s*\d+\s*;\s*Serial*$\n/, "").gsub(/;.*/, "").gsub(/^\s*$\n/, "")
+    data = IO.read(file).gsub(/ +/, " ").sub(/^\s*\d+\s*;\s*Serial\s*\(\d+\)\s*$\n/, "").gsub(/;.*/, "").gsub(/^\s*$\n/, "")
     return data
   end
 
@@ -177,12 +177,16 @@ module DnsZoneFile
   #+
   # Builds a suitable serial number for a DNS zone file.
   # Does this by finding the date/time to the nearest millisecond.
-  # bind truncates this to a 32-bit number. At the time of writing
-  # the result of this is 46939 into the new 2**32 block and so this
-  # number is not expected to wrap for another 13 years or so.
+  # bind used to truncate this to a 32-bit number. Now (at least with
+  # 9.9.5-9+deb8u6-Debian) it simply reports an error and aborts.
+  # So perform the required modulo with 2^32 here and report both that
+  # and the original string (which can be used as a comment).
+  # The original serial number was 15 characters long, so return the truncated version as 15 characters, right shifted.
   #-
   def self.make_serial_number()
-    Time.now().strftime("%Y%m%d%H%M%S%1N")
+    original = Time.now().strftime("%Y%m%d%H%M%S%1N")
+    truncated = "%15.15s" % (original.to_i() % (2**32)).to_s()
+    return truncated, original
   end
   private_class_method :make_serial_number
 
