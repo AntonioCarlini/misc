@@ -16,8 +16,9 @@ module Host
     attr_reader :name
     attr_reader :netmask
     attr_reader :os
+    attr_reader :systype
     
-    def initialize(name, ipv4_addresses, ipv6_addresses, os, hardware, comment, domain, netmask)
+    def initialize(name, ipv4_addresses, ipv6_addresses, os, hardware, comment, domain, netmask, systype)
       @name = name
       @ipv4s = ipv4_addresses
       @ipv6s = ipv6_addresses
@@ -26,6 +27,7 @@ module Host
       @comment = (comment || "")
       @domain = domain
       @netmask = netmask
+      @systype = systype
     end
   end
   
@@ -52,7 +54,8 @@ module Host
         os = data["os"]
         hw = data["hardware"]
         comment = data["comment"]
-        h = Host.new(name, [ ipv4 ], [], os, hw, comment, domain, netmask)
+        systype = data["systype"]
+        h = Host.new(name, [ ipv4 ], [], os, hw, comment, domain, netmask, systype)
         @hosts << h
       } unless @data["hosts"].nil?()
 
@@ -65,7 +68,8 @@ module Host
         os = data["os"]
         hw = data["hardware"]
         comment = data["comment"]
-        h = Host.new(name, [ ipv4 ], [], os, hw, comment, domain, netmask)
+        systype = data["systype"]
+        h = Host.new(name, [ ipv4 ], [], os, hw, comment, domain, netmask, systype)
         @virtual_hosts << h
       } unless @data["virtual-hosts"].nil?()
     end
