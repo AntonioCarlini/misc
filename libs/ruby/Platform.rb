@@ -30,10 +30,6 @@ module Platform
         @@os = "Linux"
         @@base = "debian"
         identify_debian_variant()
-      else
-        @@os ||= "Unknown"
-        @@base ||= ""
-        @@variant ||= ""
       end
     end
   end
@@ -54,7 +50,8 @@ module Platform
         @@os = "Linux"
         # TODO identify Linux variant
       else
-        @@os ||= "Unknown"
+        # Trust uname for anything that is not catered for above
+        @@os ||= op
         @@base ||= ""
         @@variant ||= ""
       end
@@ -62,8 +59,10 @@ module Platform
   end
 
   # More modern Linux releases supply some information in /etc/os-release
+  OS_RELEASE = "/etc/os-release"
   def self.check_etc_os_release()
-    File.foreach("/etc/os-release") {
+    return false, nil unless File.exist?(OS_RELEASE)
+    File.foreach(OS_RELEASE) {
       |line|
       return true, $1 if line =~ /^ID=(.*)$/
     }
