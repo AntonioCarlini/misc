@@ -52,8 +52,8 @@ module Platform
       else
         # Trust uname for anything that is not catered for above
         @@os ||= op
-        @@base ||= ""
-        @@variant ||= ""
+        @@base ||= op
+        @@variant ||= op
       end
     end
   end
