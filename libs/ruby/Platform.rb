@@ -26,7 +26,7 @@ module Platform
         @@os = "Linux"
         @@base = "debian"
         @@version = "raspian"
-      when "debian"
+      when "debian", "LinuxMint"
         @@os = "Linux"
         @@base = "debian"
         identify_debian_variant()
