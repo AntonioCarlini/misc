@@ -25,9 +25,10 @@ bin/misc.bundle:
 bin/standard-install-bundle.run: bin/misc.bundle
 	@mkdir -p bin/makeself
 	cp bin/misc.bundle bin/makeself/.
-	rm $@
-	makeself --nox11 --needroot bin/makeself/ bin/standard-install-bundle.run "misc repo installer" ./admin/standard-install-for-makeself.sh
+	cp ./admin/standard-install.sh bin/makeself/.
+	cp ./admin/standard-install-for-makeself.sh bin/makeself/.
+	chmod a+x bin/makeself/standard-install-for-makeself.sh
+	makeself --nox11 bin/makeself/ bin/standard-install-bundle.run "misc repo installer" ./standard-install-for-makeself.sh bundle
 
 bin/standard-install-archive.run:
-	rm $@
-	makeself --nox11 --needroot --tar-extra "${ARCHIVE_EXCLUSION_LIST}" . bin/standard-install-archive.run "misc repo installer" ./admin/standard-install-for-makeself.sh
+	makeself --nox11 --tar-extra "${ARCHIVE_EXCLUSION_LIST}" . bin/standard-install-archive.run "misc repo installer" ./admin/standard-install-for-makeself.sh archive
