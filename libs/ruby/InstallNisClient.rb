@@ -36,7 +36,7 @@ end # end of InstallNisClient
 
 # Test cases
 if __FILE__ == $0
-  require "Installer.rb"
+  require "InstallerOptions.rb"
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"

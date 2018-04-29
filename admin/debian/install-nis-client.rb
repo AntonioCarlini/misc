@@ -3,7 +3,7 @@
 require "pathname.rb"
 $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname() + "libs" + "ruby")
 
-require "Installer.rb"
+require "InstallerOptions.rb"
 require "InstallNisClient.rb"
 
 installer_options = Installer::parse_options()

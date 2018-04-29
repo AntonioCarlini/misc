@@ -4,7 +4,7 @@ require "pathname.rb"
 $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname() + "libs" + "ruby")
 
 require "InstallMinimalSystem.rb"
-require "Installer.rb"
+require "InstallerOptions.rb"
 require "Package.rb"
 
 #+

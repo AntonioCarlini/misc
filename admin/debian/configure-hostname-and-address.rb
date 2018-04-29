@@ -4,7 +4,7 @@ require "pathname.rb"
 $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname() + "libs" + "ruby")
 
 require "InstallHostnameAndAddress.rb"
-require "Installer.rb"
+require "InstallerOptions.rb"
 
 #+
 # Sets up the host name (and IP address configuration if required)a.

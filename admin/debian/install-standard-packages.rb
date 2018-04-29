@@ -4,7 +4,7 @@ require "pathname.rb"
 $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname() + "libs" + "ruby")
 
 require "InstallDnsServer.rb"
-require "Installer.rb"
+require "InstallerOptions.rb"
 require "InstallMinimalSystem.rb"
 require "InstallMantisBT.rb"
 require "InstallMuninMaster.rb"
