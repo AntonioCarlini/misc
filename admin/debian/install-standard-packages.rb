@@ -69,7 +69,7 @@ def main()
   bundle = nil
   assume_in_repo = false
 
-  options = Installer::parse_options(
+  installer_options = Installer::parse_options(
     [ '--bundle',          '-b', GetoptLong::REQUIRED_ARGUMENT ],
     [ '--log',             '-l', GetoptLong::OPTIONAL_ARGUMENT ],
     [ '--nolog',           '-L', GetoptLong::NO_ARGUMENT ],
@@ -164,7 +164,7 @@ def main()
     end
   end
 
-  actions = Actions.new(log_file, options.dry_run?())
+  actions = Actions.new(log_file, installer_options.dry_run?())
   
   actions.set_host(host)
   actions.set_ipv4_address(ipv4_address)

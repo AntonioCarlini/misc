@@ -6,7 +6,7 @@ $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname
 require "Installer.rb"
 require "InstallSimh.rb"
 
-options = Installer::parse_options()
+installer_options = Installer::parse_options()
 
-InstallSimh::install(options) if options.install?()
-InstallSimh::configure(options) if options.configure?()
+InstallSimh::install(installer_options) if installer_options.install?()
+InstallSimh::configure(installer_options) if installer_options.configure?()

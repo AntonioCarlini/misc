@@ -9,9 +9,9 @@ require "Package.rb"
 
 module InstallWorkstation
   
-  def self.install(options)
+  def self.install(installer_options)
     apt_options = []
-    apt_options << :dry_run if options.dry_run?()
+    apt_options << :dry_run if installer_options.dry_run?()
 
     apt = []
     # apt << "knode"                   # not available on jessie (at least not on arm64)
@@ -30,35 +30,35 @@ module InstallWorkstation
     apt << "python-sqlalchemy"         # needed by anki
     apt << "rdesktop"
 
-    InstallAdvertBlocking::install(options)
-    InstallWebServer::install(options)
+    InstallAdvertBlocking::install(installer_options)
+    InstallWebServer::install(installer_options)
 
     # TODO: prepare_vmware_tools(actions)
     # TODO: prepare_japanese_language_support(actions)
     
     # Install the necessary packages via apt
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_apt_packages(apt_packages, apt_options)
 
     dpkg_options = []
-    dpkg_options << :dry_run if options.dry_run?()
+    dpkg_options << :dry_run if installer_options.dry_run?()
 
     dpkg_packages = []
     dpkg_packages << "anki"
     dpkg_packages << "google-chrome"
 
     # Install the necessary packages via dpkg
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_dpkg_packages(dpg_packages, dpkg_options)
   end
   
-  def self.configure(options)
+  def self.configure(installer_options)
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
 
     
-    InstallAdvertBlocking::install(options)
-    InstallWebServer::configure(options)
+    InstallAdvertBlocking::install(installer_options)
+    InstallWebServer::configure(installer_options)
 
     # TODO: prepare_vmware_tools(actions)
     # TODO: prepare_wiki_server(actions)
@@ -68,8 +68,8 @@ module InstallWorkstation
     Shell::execute_shell_commands("dpkg-divert --local --divert /usr/bin/ack --rename --add /usr/bin/ack-grep", shell_options)
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
 end # end of InstallWorkstation
@@ -80,9 +80,9 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install workstation (dry run, verbose)")
-  InstallWorkstation::install(options)
+  InstallWorkstation::install(installer_options)
   puts("# Configure workstation (dry run, verbose)")
-  InstallWorkstation::configure(options)
+  InstallWorkstation::configure(installer_options)
 end

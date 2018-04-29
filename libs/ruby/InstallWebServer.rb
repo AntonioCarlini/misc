@@ -7,9 +7,9 @@ require "Package.rb"
 
 module InstallWebServer
   
-  def self.install(options)
+  def self.install(installer_options)
     apt_options = []
-    apt_options << :dry_run if options.dry_run?()
+    apt_options << :dry_run if installer_options.dry_run?()
 
     #prepare_mysql(actions)
     apt_packages = []
@@ -20,18 +20,18 @@ module InstallWebServer
     apt_packages << "php5-mysql"
 
     # Install the necessary packages via apt
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_apt_packages(apt_packages, apt_options)
 
   end
   
-  def self.configure(options)
+  def self.configure(installer_options)
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
 end # end of InstallWebServer
@@ -42,8 +42,8 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install web server (dry run, verbose)")
-  InstallWebServer::install(options)
-  InstallWebServer::configure(options)
+  InstallWebServer::install(installer_options)
+  InstallWebServer::configure(installer_options)
 end

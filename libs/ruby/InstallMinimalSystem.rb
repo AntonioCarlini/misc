@@ -8,9 +8,9 @@ require "InstallNisClient.rb"
 
 module InstallMinimalSystem
   
-  def self.install(options)
+  def self.install(installer_options)
     apt_options = []
-    apt_options << :dry_run if options.dry_run?()
+    apt_options << :dry_run if installer_options.dry_run?()
 
     apt_packages = []
     apt_packages << "emacs"                     # wheezy has emacs23, jessie has emcs24, so be non-specific here
@@ -25,26 +25,26 @@ module InstallMinimalSystem
     apt_packages << "sudo"
 
     # Install the necessary packages via apt
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_apt_packages(apt_packages, apt_options)
 
     # nis needs special handling to avoid a hang waiting for input
-    message(options, "Installing nis-client")
-    InstallNisClient::install(options)
+    message(installer_options, "Installing nis-client")
+    InstallNisClient::install(installer_options)
   end
   
-  def self.configure(options, hostname, do_ipv4)
+  def self.configure(installer_options, hostname, do_ipv4)
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
 
     do_host = !hostname.nil?() && !hostname.empty?()
-    message(options, "Configure host name") if options.verbose?() && do_host
-    InstallHostnameAndAddress::configure(options, hostname) if do_host
+    message(installer_options, "Configure host name") if installer_options.verbose?() && do_host
+    InstallHostnameAndAddress::configure(installer_options, hostname) if do_host
 
-    message(options, "Configure nis client")
-    InstallNisClient::configure(options)
+    message(installer_options, "Configure nis client")
+    InstallNisClient::configure(installer_options)
 
-    message(options, "Configure sudo")
+    message(installer_options, "Configure sudo")
     # actions.add_config_function(:configure_sudo)
     # setup sudo
     # sudo select-editor
@@ -52,12 +52,12 @@ module InstallMinimalSystem
     # add this line: $USER ALL=(ALL:ALL) NOPASSWD: ALL
     # /etc/ssh/sshd_config
     # PermitRootLogin: no
-    message(options, "Configure timezone")
+    message(installer_options, "Configure timezone")
     Shell::execute_shell_commands("cp /usr/share/zoneinfo/Europe/London /etc/localtime", shell_options)
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
 end # end of InstallMinimalSystem
@@ -69,8 +69,8 @@ if __FILE__ == $0
   ARGV << "--dry-run"
   ARGV << "--verbose"
   host = "flexpc"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install minimal systemt (dry run, verbose) specifying host #{host} and setting an IPv4 address")
-  InstallMinimalSystem::install(options)
-  InstallMinimalSystem::configure(options, host, true)
+  InstallMinimalSystem::install(installer_options)
+  InstallMinimalSystem::configure(installer_options, host, true)
 end

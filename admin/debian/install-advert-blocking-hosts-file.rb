@@ -6,7 +6,7 @@ $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname
 require "Installer.rb"
 require "InstallAdvertBlocking.rb"
 
-options = Installer::parse_options()
+installer_options = Installer::parse_options()
 
-InstallAdvertBlocking::install(options)
-InstallAdvertBlocking::configure(options)
+InstallAdvertBlocking::install(installer_options)
+InstallAdvertBlocking::configure(installer_options)

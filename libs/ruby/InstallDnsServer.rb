@@ -9,28 +9,28 @@ require "fileutils.rb"
 
 module InstallDnsServer
   
-  def self.install(options)
+  def self.install(installer_options)
     apt_options = []
-    apt_options << :dry_run if options.dry_run?()
+    apt_options << :dry_run if installer_options.dry_run?()
 
     apt_packages = []
     apt_packages << "bind9"
     apt_packages << "dnsutils"
 
     # Install the necessary packages via apt
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_apt_packages(apt_packages, apt_options)
   end
   
-  def self.configure(options)
+  def self.configure(installer_options)
     mkpath_options = {}
-    mkpath_options[:verbose] = true if options.verbose?()
-    mkpath_options[:noop] = true if options.dry_run?()
+    mkpath_options[:verbose] = true if installer_options.verbose?()
+    mkpath_options[:noop] = true if installer_options.dry_run?()
     FileUtils.mkpath('/etc/bind/zones/master', mkpath_options)
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
 end # end of InstallDnsServer
@@ -41,9 +41,9 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install DNS server (dry run, verbose)")
-  InstallDnsServer::install(options)
+  InstallDnsServer::install(installer_options)
   puts("# Configure DNS server (dry run, verbose)")
-  InstallDnsServer::configure(options)
+  InstallDnsServer::configure(installer_options)
 end

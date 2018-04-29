@@ -9,9 +9,9 @@ require "Shell.rb"
 
 module InstallMuninMaster
   
-  def self.install(options)
+  def self.install(installer_options)
     apt_options = []
-    apt_options << :dry_run if options.dry_run?()
+    apt_options << :dry_run if installer_options.dry_run?()
 
     apt = []
     apt << "apache2"
@@ -22,35 +22,35 @@ module InstallMuninMaster
     apt << "munin-plugins-extra"
 
     # Install the necessary packages via apt
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_apt_packages(apt_packages, apt_options)
 
-    InstallWebServer::install(options)
+    InstallWebServer::install(installer_options)
   end
   
-  def self.configure(options)
+  def self.configure(installer_options)
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
 
-    InstallWebServer::install(options)
+    InstallWebServer::install(installer_options)
 
     # /etc/munin/munin.conf: enable directories ; change localhost.localdomain to munin-id
     cmd = "cat /etc/munin/munin.conf | sed -r -e 's/#(db|html|log|run|tmpl)dir/\\1dir/g' -e 's/localhost.localdomain/MuninMaster/' > /etc/munin/munin.conf.mod"
-    Shell::execute_shell_commands(cmd, options)
+    Shell::execute_shell_commands(cmd, installer_options)
     # Shell::execute_shell_commands("mv /etc/munin/munin.conf.mod /etc/munin/munin.conf")
-    Shell::execute_shell_commands("mkdir -p /var/www/munin ; chown munin:munin /var/www/munin", options)
-    Shell::execute_shell_commands("sudo a2enmod fcgid", options)
+    Shell::execute_shell_commands("mkdir -p /var/www/munin ; chown munin:munin /var/www/munin", installer_options)
+    Shell::execute_shell_commands("sudo a2enmod fcgid", installer_options)
     # /etc/munin/apache.conf:
     #  Alias /munin /var/www/munin
     #  <Directory /var/www/munin ...
     # etc
-    Shell::execute_shell_commands("service apache2 restart", options)
-    Shell::execute_shell_commands("service munin-node restart", options)
+    Shell::execute_shell_commands("service apache2 restart", installer_options)
+    Shell::execute_shell_commands("service munin-node restart", installer_options)
     # restart apache2 ; restart munin-node
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
 end # end of InstallMuninMaster
@@ -61,9 +61,9 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install munin master (dry run, verbose)")
-  InstallMuninMaster::install(options)
+  InstallMuninMaster::install(installer_options)
   puts("# Configure munin master (dry run, verbose)")
-  InstallMuninMaster::configure(options)
+  InstallMuninMaster::configure(installer_options)
 end

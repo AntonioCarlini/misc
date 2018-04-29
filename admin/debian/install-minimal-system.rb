@@ -36,7 +36,7 @@ def main()
 
   host = nil
   do_ipv4 = true
-  options = Installer::parse_options(
+  installer_options = Installer::parse_options(
                                      [ '--host',            '-h', GetoptLong::REQUIRED_ARGUMENT ],
                                      [ '--no-ipv4',         '-4', GetoptLong::NO_ARGUMENT ]
                                      ) {
@@ -55,8 +55,8 @@ def main()
   }
 
   # Perform the installation and configuration as required.
-  InstallMinimalSystem::install(options) if options.install?()
-  InstallMinimalSystem::configure(options, host, do_ipv4) if options.configure?()
+  InstallMinimalSystem::install(installer_options) if installer_options.install?()
+  InstallMinimalSystem::configure(installer_options, host, do_ipv4) if installer_options.configure?()
 
 end
 

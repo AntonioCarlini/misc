@@ -15,15 +15,15 @@ module InstallSimh
   LIBPCAP =               "libpcap-1.1.1"
   SIMH_ACCOUNT =          "simh"
 
-  def self.install(options)
+  def self.install(installer_options)
     apt_options = []
-    apt_options << :dry_run if options.dry_run?()
+    apt_options << :dry_run if installer_options.dry_run?()
 
     # Make sure that the user has enough privs to perform the installation
     # Don't bother with this check if --dry-run was specified
-    unless privs_available?(options)
+    unless privs_available?(installer_options)
       exit(1)
-    end unless options.dry_run?()
+    end unless installer_options.dry_run?()
 
     apt_packages = []
     apt_packages << "bison"
@@ -37,11 +37,11 @@ module InstallSimh
     apt_packages << "unzip"
 
     # Install the necessary packages via apt
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_apt_packages(apt_packages, apt_options)
 
     # Make sure the simh user exists
-    self.create_account_for_simh(options)
+    self.create_account_for_simh(installer_options)
   end
   
   def self.as_user(uid, gid)
@@ -54,7 +54,7 @@ module InstallSimh
     }
   end
 
-  def self.configure(options)
+  def self.configure(installer_options)
     user_name = SIMH_ACCOUNT
     u = Etc.getpwnam(user_name)
     req_uid = u.uid()
@@ -63,7 +63,7 @@ module InstallSimh
     req_grpname = g.name()
 
     uid = Process.uid()
-    message(options, "Running with uid: #{uid}, required: #{req_uid}")
+    message(installer_options, "Running with uid: #{uid}, required: #{req_uid}")
 
     if req_uid != uid
       # Had to adjust sudoers to make the simh account passwordless ...
@@ -75,12 +75,12 @@ module InstallSimh
       }
       puts("About to fork process.")
       self.as_user(req_uid, req_gid) {
-        self.configure(options)
+        self.configure(installer_options)
       }
       return
     end
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
 
     puts("In configue as uid #{Process.uid} euid #{Process.euid} - doing REAL WORK")
 
@@ -104,23 +104,23 @@ module InstallSimh
     Shell::execute_shell_commands("cd #{simh_dir}; make -C simh-master", shell_options)
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
-  def self.privs_available?(options)
-    message(options, "Checking for privileges (root or sudo)")
+  def self.privs_available?(installer_options)
+    message(installer_options, "Checking for privileges (root or sudo)")
     # TODO - currently just hopes for the best
     return true
   end
 
   # Creates simh user if necessary.
   # Returns the user's uid
-  def self.create_account_for_simh(options)
+  def self.create_account_for_simh(installer_options)
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
 
-    message(options, "Creating simh user account if required")
+    message(installer_options, "Creating simh user account if required")
     user_name = SIMH_ACCOUNT
     u = UserGroupInfo::get_user(user_name)
     group_name = u.group_name()
@@ -136,7 +136,7 @@ module InstallSimh
 
     # If the user already exists, return its uid.
     unless u.nil?()
-      message(options, "#{SIMH_ACCOUNT} user already exists with uid #{u.uid}")
+      message(installer_options, "#{SIMH_ACCOUNT} user already exists with uid #{u.uid}")
       return u.uid
     end
 
@@ -149,19 +149,19 @@ module InstallSimh
     end
     
     if g.nil?()
-      message(options, "Creating simh account group #{group_name} with gid #{group_id}.")
+      message(installer_options, "Creating simh account group #{group_name} with gid #{group_id}.")
       Shell::execute_shell_commands("addgroup --gid #{group_id} #{group_name}", shell_options)
       # TODO what to do if this fails?
     else
-      message(options, "simh group already exists with gid #{g.gid}.")
+      message(installer_options, "simh group already exists with gid #{g.gid}.")
     end
 
     # Create the user
-    message(options, "Creating simh user #{user_name} with uid #{user_id}.")
+    message(installer_options, "Creating simh user #{user_name} with uid #{user_id}.")
     Shell::execute_shell_commands("useradd -m -g #{group_name} -u #{user_id} -d /home/#{user_name} -c 'SIMH user' #{user_name}", shell_options)
 
     # Add simh to sudo
-    message(options, "Adding simh user #{user_name} to sudo group.")
+    message(installer_options, "Adding simh user #{user_name} to sudo group.")
     Shell::execute_shell_commands("adduser #{user_name} sudo", shell_options)
 
     return user_id
@@ -175,9 +175,9 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install simh (dry run, verbose)")
-  InstallSimh::install(options)
+  InstallSimh::install(installer_options)
   puts("# Configure simh (dry run, verbose)")
-  InstallSimh::configure(options)
+  InstallSimh::configure(installer_options)
 end

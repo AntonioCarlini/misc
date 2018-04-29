@@ -6,7 +6,7 @@ $LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname().dirname().dirname
 require "Installer.rb"
 require "InstallNisClient.rb"
 
-options = Installer::parse_options()
+installer_options = Installer::parse_options()
 
-InstallNisClient::install(options)
-InstallNisClient::configure(options)
+InstallNisClient::install(installer_options)
+InstallNisClient::configure(installer_options)

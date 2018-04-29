@@ -7,22 +7,22 @@ require "Package.rb"
 
 module InstallNisServer
   
-  def self.install(options)
+  def self.install(installer_options)
     apt_options = []
-    apt_options << :dry_run if options.dry_run?()
+    apt_options << :dry_run if installer_options.dry_run?()
 
     apt = []
     apt << "nis"
     apt << "portmap"
 
     # Install the necessary packages via apt
-    message(options, "Installing apt packages")
+    message(installer_options, "Installing apt packages")
     Package::install_apt_packages(apt_packages, apt_options)
   end
   
-  def self.configure(options)
+  def self.configure(installer_options)
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
 
     # Edit /etc/default/nis and change the NISMASTER line to
     #   NISSERVER=master
@@ -38,8 +38,8 @@ module InstallNisServer
     # /etc/init.d/nis start
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
 end # end of InstallNisServer
@@ -50,9 +50,9 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install nis server (dry run, verbose)")
-  InstallNisServer::install(options)
+  InstallNisServer::install(installer_options)
   puts("# Configure nis server (dry run, verbose)")
-  InstallNisServer::configure(options)
+  InstallNisServer::configure(installer_options)
 end

@@ -11,9 +11,9 @@ module InstallMantisBT
   
   MANTIS_BT = "mantisbt-1.2.19"
   
-  def self.install(options)
+  def self.install(installer_options)
     shell_options = []
-    shell_options << :dry_run if options.dry_run?()
+    shell_options << :dry_run if installer_options.dry_run?()
 
     # Download the mantisbt package and unpack it in the www tree.
     Shell::execute_shell_commands("cd /tmp; wget -nv  wget http://downloads.sourceforge.net/project/mantisbt/mantis-stable/1.2.19/#{MANTIS_BT}.tar.gz", shell_options)
@@ -22,7 +22,7 @@ module InstallMantisBT
     Shell::execute_shell_commands("chmod -R root:root /var/www/mantis/", shell_options)
   end
   
-  def self.configure(options)
+  def self.configure(installer_options)
     # TODO - manual mysql configuration
     # mysql -u root -p
     # mysql> create database mantisDB;
@@ -34,8 +34,8 @@ module InstallMantisBT
     puts("Afterwards, rename or delete the /var/www/mantis/admin directory.")
   end
 
-  def self.message(options, message)
-    puts("#{File.basename(__FILE__)}: #{message}") if options.verbose?()
+  def self.message(installer_options, message)
+    puts("#{File.basename(__FILE__)}: #{message}") if installer_options.verbose?()
   end
 
 end # end of InstallMantisBT
@@ -46,9 +46,9 @@ if __FILE__ == $0
   ARGV.clear()
   ARGV << "--dry-run"
   ARGV << "--verbose"
-  options = Installer::parse_options()
+  installer_options = Installer::parse_options()
   puts("# Install MantisBT (dry run, verbose)")
-  InstallMantisBT::install(options)
+  InstallMantisBT::install(installer_options)
   puts("# Configure MantisBT (dry run, verbose)")
-  InstallMantisBT::configure(options)
+  InstallMantisBT::configure(installer_options)
 end
