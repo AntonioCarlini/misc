@@ -2,6 +2,27 @@
 
 require 'getoptlong'
 
+#
+# Interaller::Options is a class that provides a standard mechanism for installation code to process
+# command line options in a compatible way.
+#
+# Various options are handled in a standard way, with additional options handled by an associated block.
+#
+# The expected way to use this function is:
+#
+# installer_options = Installer::parse_options(['extra-one'],['extra-two']) {
+#   code-block-to-handle-extra-options
+# }
+#
+# On successful completion installer_options will be a Installer::Options object.
+#
+# The standardised CLI options are:
+#
+# --install:     cause software to be installed
+# --configure:   configure the installed software
+# --dry-run:     go through the motions (looking for issues) but do not perform any actions
+# --verbose:     log progress and issues more verbosely
+# 
 module Installer
   
   class Options
@@ -73,7 +94,7 @@ module Installer
   end # end of Installer::Options
   
   # Invokes GetoptLong.
-  # Returns a properly initialised Options class.
+  # Returns a properly initialised Installer::Options class.
   def self.parse_options(*extra_options)
     opt = Installer::Options.new(extra_options)
     if block_given?()
