@@ -16,7 +16,7 @@ module InstallMantisBT
     shell_options << :dry_run if installer_options.dry_run?()
 
     # Download the mantisbt package and unpack it in the www tree.
-    Shell::execute_shell_commands("cd /tmp; wget -nv  wget http://downloads.sourceforge.net/project/mantisbt/mantis-stable/1.2.19/#{MANTIS_BT}.tar.gz", shell_options)
+    Shell::execute_shell_commands("cd /tmp; wget -nv  wget https://downloads.sourceforge.net/project/mantisbt/mantis-stable/1.2.19/#{MANTIS_BT}.tar.gz", shell_options)
     Shell::execute_shell_commands("cd /var/www; tar xzvf /tmp/#{MANTIS_BT}.tar.gz", shell_options)
     Shell::execute_shell_commands("mv /var/www/#{MANTIS_BT} /var/www/mantis/", shell_options)
     Shell::execute_shell_commands("chmod -R root:root /var/www/mantis/", shell_options)

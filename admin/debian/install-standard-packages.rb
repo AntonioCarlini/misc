@@ -412,7 +412,7 @@ end
 def configure_mediawiki(script_dir)
   exec_as_sudo("mysql_install_db")
   exec_as_sudo("mysql_secure_installation")
-  exec_as_sudo("wget http://download.wikimedia.org/mediawiki/1.16/mediawiki-1.16.4.tar.gz")
+  exec_as_sudo("wget https://download.wikimedia.org/mediawiki/1.16/mediawiki-1.16.4.tar.gz")
   exec_as_sudo("cd ~/tmp; tar -xzvf #{script_dir}mediawiki-1.16.4.tar.gz")
   exec_as_sudo("mkdir /var/www/mediawiki")
   exec_as_sudo("cp -r ~/tmp/mediawiki-1.16.4/* /var/www/mediawiki")
@@ -428,7 +428,7 @@ def configure_mediawiki(script_dir)
   }
   exec_as_sudo("mysql -u root -pmysql -u root -pharold < #{sql_filename}")
   exec_as_sudo("chmod a+w /var/www/mediawiki/config/")
-  # navigate to http://127.0.0.1/mediawiki and fill in the form
+  # navigate to https://127.0.0.1/mediawiki and fill in the form
   # sudo mv /var/www/mediawiki/config/LocalSettings.php /var/www/mediawiki
 
 

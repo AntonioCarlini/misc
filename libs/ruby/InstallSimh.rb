@@ -92,7 +92,7 @@ module InstallSimh
     FileUtils::mkdir_p(simh_dir)
 
     # Build and install libpcap
-    Shell::execute_shell_commands("cd #{simh_dir}; wget -nv http://www.tcpdump.org/release/#{LIBPCAP}.tar.gz", shell_options)
+    Shell::execute_shell_commands("cd #{simh_dir}; wget -nv https://www.tcpdump.org/release/#{LIBPCAP}.tar.gz", shell_options)
     Shell::execute_shell_commands("cd #{simh_dir}; tar vxf #{LIBPCAP}.tar.gz", shell_options)
     Shell::execute_shell_commands("cd #{simh_dir}#{LIBPCAP}; ./configure", shell_options)
     Shell::execute_shell_commands("cd #{simh_dir}#{LIBPCAP}; make", shell_options)
