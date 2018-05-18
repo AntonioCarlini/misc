@@ -20,7 +20,7 @@ BUNDLE=$1
 shift
 
 # Everything OK. Install open-vm-tools.
-apt-get -y install --no-install-recommends --ignore-missing --dry-run open-vm-tools
+apt-get -y install --no-install-recommends --ignore-missing open-vm-tools
 
 # Install VMware player
 OPTIONS="--eulas-agreed --required"
