@@ -49,6 +49,7 @@ module InstallAdvertBlocking
     message(installer_options, "Fetching hosts file addition")
     # Notes:
     # -width=255 is needed otherwise lines are wrapped after 80 characters.
+    # Browsing to somonewhocares.org with https fails.
     cmd = "lynx -dump -nolist -width=255 http://someonewhocares.org/hosts/ | sed -n -E -e '/Dan Pollock/,$ p' | sed -e '/[[:digit:]]\\{4\\} top$/Q' >> #{HOSTS_ADVERT_BLOCK}"
     Shell::execute_shell_commands(cmd, shell_options)
     message(installer_options, "Building new hosts file")
