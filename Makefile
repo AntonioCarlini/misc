@@ -11,7 +11,7 @@ ARCHIVE_EXCLUSION_LIST = $(addprefix --exclude=,${ARCHIVE_EXCLUSION_FILES})
 bundle: bin/misc.bundle
 .PHONY: bin/misc.bundle
 
-sab: bin/standard-install-bundle.run
+run: bin/standard-install-bundle.run
 .PHONY: bin/standard-install-bundle.run
 
 saa: bin/standard-install-archive.run
