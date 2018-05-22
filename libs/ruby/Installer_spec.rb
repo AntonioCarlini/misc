@@ -1,4 +1,7 @@
-require "./Installer"
+require "pathname.rb"
+$LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname())
+
+require "InstallerOptions"
 
 describe "Installer::parse_options" do
 
@@ -35,10 +38,10 @@ describe "Installer::parse_options" do
      ARGV.clear()
      ARGV << "--verbose"
      installer_options = Installer::parse_options()
-     expect(installer_options.install?()).to eq(false)
+     expect(installer_options.install?()).to eq(true)
      expect(installer_options.configure?()).to eq(true)
      expect(installer_options.dry_run?()).to eq(false)
-     expect(installer_options.verbose?()).to eq(false)
+     expect(installer_options.verbose?()).to eq(true)
   end
 
   it "should accept --dry-run and default to --install and --configure" do
