@@ -1,4 +1,7 @@
-require "./Configuration"
+require "pathname.rb"
+$LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname())
+
+require "Configuration"
 
 describe "Configuration::get_value" do
 

@@ -1,4 +1,7 @@
-require "./UserGroupInfo"
+require "pathname.rb"
+$LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname())
+
+require "UserGroupInfo"
 
 describe "UserGroupInfo::get_value" do
 

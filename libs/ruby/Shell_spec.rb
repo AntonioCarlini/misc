@@ -1,4 +1,7 @@
-require "./Shell"
+require "pathname.rb"
+$LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname())
+
+require "Shell"
 
 describe Shell::Options do
   before do
