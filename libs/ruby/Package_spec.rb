@@ -1,8 +1,11 @@
-require "./Package"
+require "pathname.rb"
+$LOAD_PATH.unshift(Pathname.new(__FILE__).realpath().dirname())
 
-describe Package::Options do
+require "Package"
+
+describe Package::AptOptions do
   before do
-    @opt_default = Package::Options.new(nil)
+    @opt_default = Package::AptOptions.new(nil)
   end
 
   it "should NOT default to --dry-run" do
@@ -26,23 +29,23 @@ describe Package::Options do
   end
 
   it "should support :dry_run" do
-    expect(Package::Options.new([:dry_run]).text()).to match(/--dry-run/)
+    expect(Package::AptOptions.new([:dry_run]).text()).to match(/--dry-run/)
   end
 
   it "should support :ignore_missing" do
-    expect(Package::Options.new([:ignore_missing]).text()).to match(/--ignore-missing/)
+    expect(Package::AptOptions.new([:ignore_missing]).text()).to match(/--ignore-missing/)
   end
 
   it "should support :allow_unauthenticated" do
-    expect(Package::Options.new([:allow_unauthenticated]).text()).to match(/--allow-unauthenticated/)
+    expect(Package::AptOptions.new([:allow_unauthenticated]).text()).to match(/--allow-unauthenticated/)
   end
 
   it "should support :quiet" do
-    expect(Package::Options.new([:quiet]).text()).to match(/--quiet/)
+    expect(Package::AptOptions.new([:quiet]).text()).to match(/--quiet/)
   end
 
   it "should support :no_install_recommends" do
-    expect(Package::Options.new([:no_install_recommends]).text()).to match(/--no-install-recommends/)
+    expect(Package::AptOptions.new([:no_install_recommends]).text()).to match(/--no-install-recommends/)
   end
 
 end
