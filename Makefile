@@ -8,6 +8,8 @@ ARCHIVE_EXCLUSION_FILES += ${GIT_UNTRACKED_FILES}
 
 ARCHIVE_EXCLUSION_LIST = $(addprefix --exclude=,${ARCHIVE_EXCLUSION_FILES})
 
+all: bundle run 
+
 bundle: bin/misc.bundle
 .PHONY: bin/misc.bundle
 
