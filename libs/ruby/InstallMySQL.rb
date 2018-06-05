@@ -13,6 +13,7 @@ module InstallMySQL
     apt_options = []
     apt_options << :dry_run if installer_options.dry_run?()
 
+    # Make the default password ".hostname" i.e. the hostname preceded by a dot.
     password = "." + Socket.gethostbyname(Socket.gethostname()).first()
 
     # Install the mysql package silently by preseeding the required values.
