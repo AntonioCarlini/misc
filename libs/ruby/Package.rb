@@ -22,6 +22,7 @@ module Package
 
     def parse(options)
       return true if options.nil?() || options.empty?()
+
       # Parse each option
       options.each() {
         |opt|
@@ -35,6 +36,7 @@ module Package
           return false                  # complain if an unknown option is supplied
         end
       }
+
       return true
     end
 
