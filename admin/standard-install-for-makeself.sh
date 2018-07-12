@@ -10,7 +10,7 @@
 #    bundle:  expect a bundle, invoke standard-install.sh to build a repo from it
 #    archive: unsupported at the moment
 
-SCRIPT_DIR=`dirname 0`
+SCRIPT_DIR=$(dirname $0)
 
 # Try to cope if no arguments are supplied.
 # If bundle/archive is somehow missing but other args are supplied this will not work.
