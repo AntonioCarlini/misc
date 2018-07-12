@@ -79,7 +79,7 @@ done
 echo "After handling all args = [$@] resubmit args =[$ARGS_WITHOUT_REFRESH]"
 
 # Now exec to start running this script after the "exec" line below but with everything logged ...
-LOG=/tmp/`basename $LOGFILE`
+LOG=/tmp/$(basename ${LOGFILE})
 exec > $LOG 2>&1 < /dev/null
 
 # At this point an original invocation like
@@ -91,7 +91,7 @@ exec > $LOG 2>&1 < /dev/null
 # invoked.
 
 STATUS=$?
-echo "`date` Noting environment: ["
+echo "$(date) Noting environment: ["
 echo $0
 echo STATUS=$STATUS
 echo HOME=$HOME
@@ -99,7 +99,7 @@ echo ALWAYS_EMAIL=$ALWAYS_EMAIL
 echo PROCESSOR=$PROCESSOR
 echo LOGFILE=$LOGFILE
 echo "]"
-echo "`date` Logging command: [$@] ["
+echo "$(date) Logging command: [$@] ["
 $@
 echo "]"
-echo "`date` Command completed."
+echo "$(date) Command completed."
