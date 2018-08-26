@@ -158,7 +158,7 @@ result = re.findall(r'<h5 class="browseItemTitle">.*?<a href="(.*?)" title="".*?
 # Loop through all the links to article pages
 for index, rs in enumerate(result):
     link = "http://digital-library.theiet.org" + rs[0]
-    print ("Fetching [{:02d}] <link> = [{}] <title> = {}".format(index + 1, link, rs[1]))
+    print ("Fetching [{:02d}] <link> = [{}] <title> = {}".format(index + 1, link, rs[1].encode('utf-8')))
     # Move to the specific article page
     driver.get(link)
     # Within the article page there is a link to the PDF file for that article. Click that link.
