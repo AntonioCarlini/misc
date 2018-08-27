@@ -16,6 +16,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from os.path import expanduser
 
 import argparse
@@ -95,6 +97,8 @@ def login_to_iet(username, password, driver):
     # Click on "remember me". This button is not always present, so allow for that possibility.
     remember_me = driver.find_elements_by_xpath('//*[@id="remember"]')
     if len(remember_me) > 0:
+        # Wait for the "remember me" radio button to be visible before trying to click on it.
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH,'//*[@id="remember"]')))
         remember_me[0].click()
 
     # Enter username and password. Hit RETURN in the password box
