@@ -92,8 +92,10 @@ def login_to_iet(username, password, driver):
     # Click on the Login button to reveal the boxes
     driver.find_element(By.XPATH, '//*[@id="loginBox"]/ul/li[1]/h4/a').click();
 
-    # Click on "remember me"
-    driver.find_element(By.XPATH, '//*[@id="remember"]').click()
+    # Click on "remember me". This button is not always present, so allow for that possibility.
+    remember_me = driver.find_elements_by_xpath('//*[@id="remember"]')
+    if len(remember_me) > 0:
+        remember_me[0].click()
 
     # Enter username and password. Hit RETURN in the password box
     driver.find_element(By.XPATH, '//*[@id="signname"]').send_keys(username)
@@ -174,19 +176,5 @@ for index, rs in enumerate(result):
     #print("breaking")
     #break
 
-print("pausing")
-time.sleep(100)
-
 # For convenience, head back to the original TOC page.
 driver.get("http://digital-library.theiet.org/content/journals/et/{:d}/{:d}".format(vol, iss))
-
-#print result[0]
-#result = re.findall(r'<h5 class="browseItemTitle">', html, re.MULTILINE)
-#<a href=";jsessionid=41g98q2ctln7e.x-iet-live-01#" title="" class="headingtext signinlink">Login</a>
-#//*[@id="loginBox"]/ul/li[1]/h4/a
-
-# look for
-# <h5 class="browseItemTitle">
-# <a href="/content/journals/10.1049/et_20060306" title="" 
-# >Editor&apos;s comment</a></h5>
-
