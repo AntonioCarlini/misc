@@ -137,10 +137,12 @@ print("Starting IET journal retrieval for Volume {:02d} Issue {:02d}".format(vol
 # Create the download area
 dl_tgt = make_download_area_name(vol, iss)
 create_download_area(dl_tgt)
-print("Downloading to [" + dl_tgt + "]")
 
 # Start the relevant browser
 driver = use_chrome_browser(dl_tgt)
+
+# Say what's going on
+print("Downloading to [" + dl_tgt + "] using " + driver.capabilities['browserName'] + " " + driver.capabilities['version'])
 
 # Navigate to the journal page and log in
 password = fetch_password()
