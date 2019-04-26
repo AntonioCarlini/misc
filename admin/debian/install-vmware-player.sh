@@ -4,7 +4,7 @@
 # Alternatively other arguments can be passed to the bundle (use --help to see what is supported).
 
 # The VMware Player bundle must be specified
-if [[ $# < 1 ]]; then
+if [[ $# -lt 1 ]]; then
     echo "Missing required argument"
     echo "Usage: $0 vmware-player-bundle"
     exit 1
@@ -16,16 +16,17 @@ if [[ ! -f $1 ]]; then
     exit 1
 fi
 
-BUNDLE=$1
+bundle=$1
 shift
 
 # Everything OK. Install open-vm-tools.
 apt-get -y install --no-install-recommends --ignore-missing open-vm-tools
 
 # Install VMware player
-OPTIONS="--eulas-agreed --required"
+options="--eulas-agreed --required"
 if [[ ! -z $1 ]]; then
-    OPTIONS=$@
+    options="$*"
 fi
 
-bash $BUNDLE $OPTIONS
+bash "${bundle}" "${options}"
+
