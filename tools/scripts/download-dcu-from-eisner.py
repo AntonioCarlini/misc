@@ -47,6 +47,11 @@ fixed_title = {
 , "RZ28 3.5-Inch, 2.1 Gbyte Drive" : "RZ28 3.5-Inch 2.1 Gbyte Drive" # 618
 , "Larger Memory Available for DEC 3000 Systems" : "Larger Memory Available for DEC 3000 Workstations and Servers" # 617
 , "RF74 DSSI In-Cabinet Disks for VAX 7000 and 10000 Systems" : "RF74 DSSI In-Cabinet Disk for VAX 7000 and 10000 Systems" # 621
+, "RZ26L High Performance, Low Profile 1.05 GB Disk Drive" : "RZ26L High Performance, Low Profile 1.05 Gbyte Disk Drive" # 627
+, "DEC Rdb V6.1 for DEC OSF/1 AXP" : "DEC Rdb V6.1 for OSF/1 AXP" # 631
+, "Tx857-Tx867 Upgrades to TZ877 Tape Subsystem" : "Tx857/Tx867 Upgrades to TZ877 Tape Subsystem" # 636
+, "File Transfer Spooler for OpenVMS V3.0" : "File Transfer Spooler for OpenVMS V3.0 for Europe" #639
+, "SOFTWARE UPDATES" : "Software Updates:" # 642
 }
 
 # Loop through the matches to build up the required notes
@@ -91,12 +96,15 @@ for note in notes:
     ## print("For URL [" + note_page_url + "] the date is <" + note_date + ">")
     ## print("The title is [" + note_title + "]")
     note_issue_date = "ISSUE-DATE-UNKNOWN"
+    date_time = datetime.date(1970, 12, 5)
     try:
         date_time = datetime.datetime.strptime(note_date, '%B %d, %Y')
-        note_issue_date = date_time.strftime("%Y-%m-%d")
     except ValueError:
-        print("Failed to find date in [" + note_date + "]")
-        datetime.date(1970, 12, 5)
+        try:
+            date_time = datetime.datetime.strptime(note_date, '%m/%d/%y')
+        except ValueError:
+            print("Failed to find date in [" + note_date + "]")
+    note_issue_date = date_time.strftime("%Y-%m-%d")
     if dcu_date:
         if note_issue_date != dcu_date:
             accumulated_errors.append("BAD DATE (" + note_issue_date + " for note: [" + note_page_url + "], expected " + dcu_date)
@@ -186,6 +194,8 @@ for note in notes:
             del headings_text[0]
         # Strip leading "o " (i.e. "o" followed by some whitespace) and then remove leading and trailing spaces
         headings_text = [re.sub("^\s*o\s+","",x).strip() for x in headings_text]
+        # Strip leading "."+number (e.g.. ".3" followed by some whitespace) and then remove leading and trailing spaces
+        headings_text = [re.sub("^\s*\.\s*\d+\s+","",x).strip() for x in headings_text]
         # Build an identical list that is all lowercase
         headings_text_lowercase = [x.lower() for x in headings_text]
         ## print("Initial headings:")
