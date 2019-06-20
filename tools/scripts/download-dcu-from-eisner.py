@@ -58,9 +58,16 @@ for note in notes:
     # Look for the note date:
     #  <tr><td align=left width="15%"><a rel=nofollow href="range?f1=INDUSTRY_NEWS&amp;f2=572.*&amp;f4=t">Topic 572</a><th align=left>Digital's Customer Update - June 5, 1992</tr>
     # Note that on a few occasions the date is separated by a comma rather that a hyphen.
-    date_match = re.search('<th align=left>Digital\'s Customer Update(?: - |,\s+)(.*?)</tr>', this_page.text)
-    note_date = date_match.group(1)                          # note date will be in the format 'June 5, 1992'
-    note_date = re.sub("Special Issue,\s*", "", note_date)   # Some issues have extra leading text: "Special Issue, "
+    # Some issues have not date in the expected place. It's not really used for anything so skip it.
+    note_date = "MISSING"
+    date_match = re.search('<th align=left>(?:Digital\'s\s+)?Customer Update(?: --?\s*|,\s+)(.*?)</tr>', this_page.text)
+    if date_match:
+        note_date = date_match.group(1)                          # note date will be in the format 'June 5, 1992'
+        note_date = re.sub("Special Issue,\s*", "", note_date)   # Some issues have extra leading text: "Special Issue, "
+        note_date = re.sub("In This Issue -\s*", "", note_date)  # Some issues have extra leading text: "In This Issue - "
+        ## print("Matched date [" + note_date + "] in note [" + note_page_url)
+    else:
+        accumulated_errors.append("Failed to match date in note [" + note_page_url)
 
     # Look for the note title
     #  <tr><td valign=top>Reply 1 of 29<td class=by>by EISNER::DEC_NEWS_1 &quot;DEC News and Press Releases&quot; at  8-JUN-1992 11:17<br>DEC @aGlance V1.0 Integrates Desktop Applications</tr>
@@ -83,8 +90,13 @@ for note in notes:
 
     ## print("For URL [" + note_page_url + "] the date is <" + note_date + ">")
     ## print("The title is [" + note_title + "]")
-    date_time = datetime.datetime.strptime(note_date, '%B %d, %Y')
-    note_issue_date = date_time.strftime("%Y-%m-%d")
+    note_issue_date = "ISSUE-DATE-UNKNOWN"
+    try:
+        date_time = datetime.datetime.strptime(note_date, '%B %d, %Y')
+        note_issue_date = date_time.strftime("%Y-%m-%d")
+    except ValueError:
+        print("Failed to find date in [" + note_date + "]")
+        datetime.date(1970, 12, 5)
     if dcu_date:
         if note_issue_date != dcu_date:
             accumulated_errors.append("BAD DATE (" + note_issue_date + " for note: [" + note_page_url + "], expected " + dcu_date)
@@ -139,7 +151,10 @@ for note in notes:
         dcu_date = note_issue_date
         # Here do the beginning of mediawiki page processing
         print("Digital Customer Update " + note_issue_date)
-        print("This is the " + date_time.strftime("%d %b %Y") + " issue of Digital's Customer Update from [" + note_page_url + " EISNER].")
+        if date_time:
+            print("This is the " + date_time.strftime("%d %b %Y") + " issue of Digital's Customer Update from [" + note_page_url + " EISNER].")
+        else:
+            accumulated_errors.append("date_time unavailable")
         print("")
         print("__TOC__")
         print("")
@@ -163,7 +178,7 @@ for note in notes:
             del headings_text[0]
         # Strip ${note_date} line
         if headings_text[0].strip() != note_date:
-            accumulated_errors.append("Expected note date " + note_date)
+            accumulated_errors.append("Expected note date " + note_date + " but found " + headings_text[0].strip())
         else:
             del headings_text[0]
         # Strip 2nd set of leading blank lines
