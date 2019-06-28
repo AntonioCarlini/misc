@@ -103,7 +103,7 @@ for note in notes:
         try:
             date_time = datetime.datetime.strptime(note_date, '%m/%d/%y')
         except ValueError:
-            print("Failed to find date in [" + note_date + "]")
+            accumulated_errors.append("Failed to find date in [" + note_date + "] from URL [" + note_page_url + "]")
     note_issue_date = date_time.strftime("%Y-%m-%d")
     if dcu_date:
         if note_issue_date != dcu_date:
