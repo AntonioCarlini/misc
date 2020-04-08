@@ -99,7 +99,10 @@ module DnsZoneFile
     conf_file.write(%Q[    file "/etc/bind/zones/master/#{forward_filename}";\n])
     conf_file.write(%Q[};\n])
     conf_file.write("\n")
-    conf_file.write(%Q[zone "#{subnet}" {\n])
+    # Here reverse the subnet, and drop the first element by breaking into an array, dropping the first element and joining
+    # TODO: will this work for anything other than a /24?
+    rev_part = subnet.reverse().split(".").drop(1).join(".")
+    conf_file.write(%Q[zone "#{rev_part}" {\n])
     conf_file.write(%Q[    type master;\n])
     conf_file.write(%Q[    file "/etc/bind/zones/master/#{reverse_filename}";\n])
     conf_file.write(%Q[};\n])
