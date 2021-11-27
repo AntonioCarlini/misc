@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# A simple script that produces a set of cryptocoin values in a format that the tracking spreadsheet expects.
+
+# Pick up a USD ($) to GBP (£) conversion rate from http://www.floatrates.com.
+# Pick up the required coin values from the coingecko API.
+# Write out the expected spreadsheet page in CSV format
+
 # Start with two blank entries. This is purely to match the existing spreadsheet.
 echo ","
 echo ","
@@ -20,12 +26,26 @@ usd2gbp=$(curl -s http://www.floatrates.com/daily/usd.json | jq .gbp | grep rate
 echo "$ to £ conversion,${usd2gbp}"
 
 # ~/.config/coin-prices/coins.txt lists the required coins, in order, by symbol, one per line
-coins=$(echo $(<~/.config/coin-prices/coins.txt)  | tr '\n' ' ')
+coins=$(<~/.config/coin-prices/coins.txt)
+coinslist=$(echo ${coins}  | tr ' ' ',' | tr A-Z a-z)
+# Grab the required data for all coins in one go via the coingecko API
+result=$(curl -s -X GET "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&symbols=${coinslist}" -H "accept: application/json")
 
 # Now run through every crypto coin that the spreadsheet cares about and collect its values
 for coin in $coins
 do
-    price=$(curl -s rate.sx/1${coin})
+    # The coingecko symbols are case-sensitive and all lowercase, so ensure that that's what we ask for
+    coin_lc=$(echo ${coin} | tr A-Z a-z)
+    # Some coins have the same symbol but differing ID values, so for example DOGE has:
+    #     "id": "dogecoin",
+    #     "symbol": "doge",
+    # and
+    #     "id": "binance-peg-dogecoin",
+    #     "symbol": "doge",
+    # As this example shows, simply requesting an identical ID will not work.
+    # It may become necessary to do something more sophisticaed in the future, but for now
+    # just filter out anything that has an ID that starts with "binance-peg"
+    price=$(echo ${result} | jq ".[] | select(.symbol==\"${coin_lc}\") | select(.id | startswith(\"binance-peg\") | not) | .current_price")
     echo "${coin} (in $),\"${price}\""
 done
 
