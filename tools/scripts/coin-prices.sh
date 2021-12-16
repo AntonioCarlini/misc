@@ -7,7 +7,7 @@
 # Write out the expected spreadsheet page in CSV format
 
 # Start with two blank entries. This is purely to match the existing spreadsheet.
-echo ","
+echo "Last automatic update,$(date +'%Y-%m-%d %H:%M:%S')"
 echo ","
 # Pick up the USD ($) to GBP (£) conversion rate
 # floatrates.com provides this in JSON format for USD->many currencies.
@@ -44,8 +44,9 @@ do
     #     "symbol": "doge",
     # As this example shows, simply requesting an identical ID will not work.
     # It may become necessary to do something more sophisticaed in the future, but for now
-    # just filter out anything that has an ID that starts with "binance-peg"
-    price=$(echo ${result} | jq ".[] | select(.symbol==\"${coin_lc}\") | select(.id | startswith(\"binance-peg\") | not) | .current_price")
+    # just filter out anything that has an ID that starts with "binance-peg".
+    # Also drop "genesis-mana" and "san-diego-coin"
+    price=$(echo ${result} | jq ".[] | select(.symbol==\"${coin_lc}\") | select(.id | startswith(\"binance-peg\") | not) | select(.id | startswith(\"genesis-mana\") | not) | select(.id | startswith(\"san-diego-coin\") | not) | .current_price")
     echo "${coin} (in $),\"${price}\""
 done
 
