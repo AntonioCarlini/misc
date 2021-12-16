@@ -31,6 +31,8 @@ coinslist=$(echo ${coins}  | tr ' ' ',' | tr A-Z a-z)
 # Grab the required data for all coins in one go via the coingecko API
 result=$(curl -s -X GET "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&symbols=${coinslist}" -H "accept: application/json")
 
+[[ "$1" == "debug" ]] && echo $result | jq
+
 # Now run through every crypto coin that the spreadsheet cares about and collect its values
 for coin in $coins
 do
@@ -46,7 +48,14 @@ do
     # It may become necessary to do something more sophisticaed in the future, but for now
     # just filter out anything that has an ID that starts with "binance-peg".
     # Also drop "genesis-mana" and "san-diego-coin"
-    price=$(echo ${result} | jq ".[] | select(.symbol==\"${coin_lc}\") | select(.id | startswith(\"binance-peg\") | not) | select(.id | startswith(\"genesis-mana\") | not) | select(.id | startswith(\"san-diego-coin\") | not) | .current_price")
+    # Further drop "wrapped-solana" and "olympus-v1"
+    price=$(echo ${result} | jq ".[] | select(.symbol==\"${coin_lc}\") | \
+                 select(.id | startswith(\"binance-peg\") | not) | \
+                 select(.id | startswith(\"genesis-mana\") | not) | \
+                 select(.id | startswith(\"san-diego-coin\") | not) | \
+                 select(.id | startswith(\"wrapped-solana\") | not) | \
+                 select(.id | startswith(\"olympus-v1\") | not) | \
+                 .current_price")
     echo "${coin} (in $),\"${price}\""
 done
 
