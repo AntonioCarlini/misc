@@ -25,8 +25,9 @@ echo ","
 usd2gbp=$(curl -s http://www.floatrates.com/daily/usd.json | jq .gbp | grep rate | cut -d: -f2 | cut -d, -f1)
 echo "$ to £ conversion,${usd2gbp}"
 
-# ~/.config/coin-prices/coins.txt lists the required coins, in order, by symbol, one per line
-coins=$(<~/.config/coin-prices/coins.txt)
+# ~/.config/coin-prices/coins.txt lists the required coins, in order, by symbol or symbol:id, one per line
+coins_with_id=$(<~/.config/coin-prices/coins.txt)
+coins=$(sed 's/:.*$//' ~/.config/coin-prices/coins.txt)
 coinslist=$(echo ${coins}  | tr '[:blank:]' ',' | tr '[:upper:]' '[:lower:]')
 # Grab the required data for all coins in one go via the coingecko API
 result=$(curl -s -X GET "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&symbols=${coinslist}" -H "accept: application/json")
@@ -34,28 +35,28 @@ result=$(curl -s -X GET "https://api.coingecko.com/api/v3/coins/markets?vs_curre
 [[ "$1" == "debug" ]] && echo "${result}" | jq
 
 # Now run through every crypto coin that the spreadsheet cares about and collect its values
-for coin in $coins
+for coin_with_id in ${coins_with_id}
 do
-    # The coingecko symbols are case-sensitive and all lowercase, so ensure that that's what we ask for
-    coin_lc=$(echo "${coin}" | tr '[:upper:]' '[:lower:]')
     # Some coins have the same symbol but differing ID values, so for example DOGE has:
     #     "id": "dogecoin",
     #     "symbol": "doge",
     # and
     #     "id": "binance-peg-dogecoin",
     #     "symbol": "doge",
-    # As this example shows, simply requesting an identical ID will not work.
-    # It may become necessary to do something more sophisticaed in the future, but for now
-    # just filter out anything that has an ID that starts with "binance-peg".
-    # Also drop "genesis-mana" and "san-diego-coin"
-    # Further drop "wrapped-solana" and "olympus-v1"
-    price=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | \
-                 select(.id | startswith(\"binance-peg\") | not) | \
-                 select(.id | startswith(\"genesis-mana\") | not) | \
-                 select(.id | startswith(\"san-diego-coin\") | not) | \
-                 select(.id | startswith(\"wrapped-solana\") | not) | \
-                 select(.id | startswith(\"olympus-v1\") | not) | \
-                 .current_price")
+    # To handle this, while keeping the simple "symbol" approach in most cases, the
+    # coins.txt file allows for an optional ID to be specified as:
+    #  symbol:id
+    # So FLOW can be specified as a line that just says "FLOW" but for DOGE the
+    # entry reads "DOGE:DOGECOIN" and in this case the request matches against
+    # the specified ID too.
+    IFS=':' read -ra array <<< "${coin_with_id}"
+    coin=${array[0]}
+    id_lc=$(echo "${array[1]}" | tr '[:upper:]' '[:lower:]')
+    [[ "${id_lc}" == "" ]] && id_lc=$(echo "${array[0]}" | tr '[:upper:]' '[:lower:]')
+    # The coingecko symbols are case-sensitive and all lowercase, so ensure that that's what we ask for
+    coin_lc=$(echo "${coin}" | tr '[:upper:]' '[:lower:]')
+    price=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | select(.id==\"${id_lc}\") | .current_price")
+    [[ "${price}" == "" ]] && price=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | .current_price")
     echo "${coin} (in $),\"${price}\""
 done
 
