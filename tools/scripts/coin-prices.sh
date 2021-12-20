@@ -26,9 +26,10 @@ usd2gbp=$(curl -s http://www.floatrates.com/daily/usd.json | jq .gbp | grep rate
 echo "$ to £ conversion,${usd2gbp}"
 
 # ~/.config/coin-prices/coins.txt lists the required coins, in order, by symbol or symbol:id, one per line
+# The format is case-sensitive and both "symbol" and "id" must match the coingecko.com case exactly
 coins_with_id=$(<~/.config/coin-prices/coins.txt)
 coins=$(sed 's/:.*$//' ~/.config/coin-prices/coins.txt)
-coinslist=$(echo ${coins}  | tr '[:blank:]' ',' | tr '[:upper:]' '[:lower:]')
+coinslist=$(echo ${coins}  | tr '[:blank:]' ',')
 # Grab the required data for all coins in one go via the coingecko API
 result=$(curl -s -X GET "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&symbols=${coinslist}" -H "accept: application/json")
 
@@ -53,11 +54,18 @@ do
     coin=${array[0]}
     id_lc=$(echo "${array[1]}" | tr '[:upper:]' '[:lower:]')
     [[ "${id_lc}" == "" ]] && id_lc=$(echo "${array[0]}" | tr '[:upper:]' '[:lower:]')
-    # The coingecko symbols are case-sensitive and all lowercase, so ensure that that's what we ask for
+    # The coingecko symbols are case-sensitive and all (but one) are lowercase, so ensure that that's what we ask for
     coin_lc=$(echo "${coin}" | tr '[:upper:]' '[:lower:]')
+    # Strangely symbol "avax" is "binance-peg-avalanche" and "AVAX" is "avalanche-2" (which is the "Avalanche" needed here)
+    # so keep "AVAX" as uppercase in the simplest way possible.
+    [[ "${coin_lc}" == "avax" ]] && coin_lc="AVAX"
     price=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | select(.id==\"${id_lc}\") | .current_price")
+    name=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | select(.id==\"${id_lc}\") | .name")
     [[ "${price}" == "" ]] && price=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | .current_price")
-    echo "${coin} (in $),\"${price}\""
+    [[ "${name}" == "" ]] && name=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | .name")
+    # Always write the coin name in capitals to avoid surprising our human readers
+    coin_uc=$(echo "${coin}" | tr '[:lower:]' '[:upper:]')
+    echo "${coin_uc} (in $),\"${price}\",${name}"
 done
 
 # Notes:
