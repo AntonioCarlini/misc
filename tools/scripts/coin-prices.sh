@@ -65,7 +65,7 @@ do
     [[ "${name}" == "" ]] && name=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | .name")
     # Always write the coin name in capitals to avoid surprising our human readers
     coin_uc=$(echo "${coin}" | tr '[:lower:]' '[:upper:]')
-    echo "${coin_uc} (in $),\"${price}\",${name}"
+    echo "${coin_uc} (in $),\"${price}\",\"\",${name}"
 done
 
 # Notes:
