@@ -65,6 +65,18 @@ do
     [[ "${name}" == "" ]] && name=$(echo "${result}" | jq ".[] | select(.symbol==\"${coin_lc}\") | .name")
     # Always write the coin name in capitals to avoid surprising our human readers
     coin_uc=$(echo "${coin}" | tr '[:lower:]' '[:upper:]')
+    # If data is not available from CoinGecko, try LiveCoinWatch
+    if [[ "${price}" == "" ]]; then
+        curl_d="{\"currency\":\"USD\",\"code\":\"${coin_uc}\",\"meta\":\"true\"}"
+        result_lcw=$(curl -s -X POST 'https://api.livecoinwatch.com/coins/single' -H 'content-type: application/json' -H "x-api-key: ${LIVECOINWATCH_API_KEY}" -d "${curl_d}")
+        price=$(echo "${result_lcw}" | jq ".rate")
+        name=$(echo "${result_lcw}" | jq ".name")
+    fi
+    # If data is still missing for an entry, make this very clear
+    if [[ "${price}" == "" ]]; then
+        price="UNKNOWN"
+        name="MISSING"
+    fi
     echo "${coin_uc} (in $),\"${price}\",\"\",${name}"
 done
 
