@@ -47,6 +47,19 @@ def main()
 
   exit(1) if bad_option
 
+  exit(1) if ARGV.length > 1
+
+  print "ARGV len = ", ARGV.length(), "\n"
+  
+  if ARGV.length == 1
+    dns_files_dir = ARGV.shift()
+    dns_files_dir += "/" unless dns_files_dir[-1] == "/"
+  else
+    dns_files_dir = File.dirname(__FILE__) + "/../systems/"
+  end
+
+  print "Will look for DNS files in ", dns_files_dir, "\n"
+  
   dns_files = []
   
   # Create a fresh temporary directory.
@@ -73,8 +86,10 @@ def main()
     |conf_file|
     DnsZoneFile::write_configuration_file_header(conf_file)
 
-    Dir.glob(File.dirname(__FILE__) + "/../systems/*.dns") {
+    ## TODO: fix this to provide an alternative
+    Dir.glob(dns_files_dir + "*.dns") {
       |src_file|
+      printf "Processing DNS file ", src_file, "\n"
       zone_data = Host::Hosts.new(File.expand_path(src_file))
 
       forward_zone_file_name = zone_data.domain() + ".local"
@@ -115,6 +130,8 @@ def main()
   gen_file_options = file_options.dup()
   gen_file_options.delete(:noop)   # Used for file operations (other than move) on a generated file
 
+  file_changed = false
+  
   # Remove identical files, move the rest to the active bind area.
   # Note that the config needs to be handled specially: it moves to a different area and moves after everything else.
   # Further note that out-of-date zone files are NOT removed from the /etc/bind directory tree.
@@ -130,29 +147,38 @@ def main()
       config_gen_file = gen_file.dup()
       if FileUtils.identical?(config_gen_file, config_dns_file)
         puts("config file #{config_dns_file} unchanged.") if verbose
-        FileUtils.rm(gen_file, gen_file_options)
+        FileUtils.rm(gen_file, **gen_file_options)
       else
         puts("config file #{config_dns_file} to be updated.") if verbose
         update_config_file = true
+        file_changed = true
       end
     else
       dns_file = "/etc/bind/zones/master/#{basename}"
       if DnsZoneFile::zone_files_functionally_identical?(gen_file, dns_file)
         puts("zone file #{dns_file} unchanged.") if verbose
-        FileUtils.rm(gen_file, gen_file_options)
+        FileUtils.rm(gen_file, **gen_file_options)
       else
         puts("zone file #{dns_file} to be updated.") if verbose
-        FileUtils.mv(gen_file, dns_file, file_options)
+        FileUtils.mv(gen_file, dns_file, **file_options)
+        file_changed = true
       end
     end
   }
   # Now that the zone files are present and correct, move the config file (if required)
-  FileUtils.mv(config_gen_file, config_dns_file, file_options) if update_config_file
+  FileUtils.mv(config_gen_file, config_dns_file, **file_options) if update_config_file
   
   # TODO
   # Get bind to notice
-  FileUtils.rmdir(temp_dir, gen_file_options)  
+  FileUtils.rmtree(temp_dir, **gen_file_options)
+
+  if file_changed
+    puts("BIND needs to be restarted") if verbose
+    return 1
+  end
+  return 0
 end
 
 # Invoke the main function to kick off processing
-main()
+result = main()
+exit(result)

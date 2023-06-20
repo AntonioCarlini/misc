@@ -78,7 +78,8 @@ module DnsZoneFile
     file.puts("     ")
     hosts.each() {
       |h|
-      file.print("%-7d" % h.ipv4s[0].mask("0.0.0.255").to_i())
+      # IPAddr supports .reverse() specifically for reverse DNS lookup, so use that!
+      file.print("%-30s" % h.ipv4s[0].reverse())
       file.puts(" IN      PTR     #{h.name()}.#{domain}.")
     }
   end
