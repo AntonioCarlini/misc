@@ -68,8 +68,9 @@ def check_directory_files(path, dirname, verbose=False, check_sha256=False):
         errors.append(f"ERROR: Unexpected file present: {ex}")
 
     # sha256sum.txt validation
-##    if sha_file in actual:
-##        errors.extend(check_sha256_file(full_path, dirname, required, check_sha256))
+    # Note that the sha file must not appear in itself!
+    if sha_file in actual:
+        errors.extend(check_sha256_file(full_path, dirname, required - {sha_file}, check_sha256))
 
     # README validation
 ##    if readme_file in actual:
@@ -83,15 +84,34 @@ def check_sha256_file(full_path, dirname, required_files, check_sha256):
     errors = []
     sha_file = os.path.join(full_path, "sha256sum.txt")
     listed = {}
+
     with open(sha_file, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
-            parts = line.strip().split()
-            if len(parts) != 2:
-                errors.append("ERROR: sha256sum.txt: malformed line: " + line.strip())
+            line = line.rstrip("\n")
+            if not line.strip():
+                continue  # skip blank lines
+
+            # Try to match the two valid sha256sum formats
+            if "  " in line:
+                # text mode: "<hash><2 spaces><filename>"
+                checksum, fname = line.split("  ", 1)
+            elif " *" in line:
+                # binary mode: "<hash><space><asterisk><filename>"
+                checksum, fname = line.split(" *", 1)
+            else:
+                errors.append("Error: sha256sum.txt: malformed separator: " + line)
                 continue
-            checksum, fname = parts
+
+            checksum = checksum.strip()
+            fname = fname.strip()
+
+            if not checksum or not fname:
+                errors.append("Error: sha256sum.txt: missing checksum or filename: " + line)
+                continue
+
             listed[fname] = checksum
 
+            
     missing_in_sha = required_files - set(listed.keys())
     extra_in_sha = set(listed.keys()) - required_files
     for f in missing_in_sha:
