@@ -73,8 +73,8 @@ def check_directory_files(path, dirname, verbose=False, check_sha256=False):
         errors.extend(check_sha256_file(full_path, dirname, required - {sha_file}, check_sha256))
 
     # README validation
-##    if readme_file in actual:
-##        errors.extend(check_readme_format(full_path, dirname, part_number, year, month, text, verbose))
+    if readme_file in actual:
+        errors.extend(check_readme_format(full_path, dirname, part_number, year, month, text, verbose))
 
     return errors
 
@@ -153,10 +153,13 @@ def check_readme_format(full_path, dirname, part_number, year, month, text, verb
     vol_line = lines[4]
 
     # Title plausibility
-    norm_title = re.sub(r"\s+", "", title).lower()
+    # Note that AXP titles are known to be difficult to match. Try our best but expect to add further mitigations.
+    norm_title = re.sub(r"[\s/.-]+", "", title).lower()
+    norm_title = re.sub("openvmsaxp", "axpvms", norm_title)
+    norm_title = re.sub("layeredproductsonlinedocumentation", "odl", norm_title)
     norm_text = re.sub(r"[-.]", "", text).lower()
-    if norm_title != norm_text:
-        errors.append("ERROR: README TITLE does not plausibly match text segment")
+    if (norm_title != norm_text):
+        errors.append(f"ERROR: README TITLE ('{title}')=>('{norm_title}') does not plausibly match text segment ('{text}')=>('{norm_text}')")
 
     # Disc line
     m = re.match(r"Disc (\d+) of (\d+)$", disc_line)
@@ -171,15 +174,15 @@ def check_readme_format(full_path, dirname, part_number, year, month, text, verb
     month_name = calendar.month_name[int(month)]
     expected_date = f"{month_name} {year}"
     if date_line != expected_date:
-        errors.append(f"ERROR: README Month Year mismatch: expected '{expected_date}'")
+        errors.append(f"ERROR: README Month Year mismatch: expected '{expected_date}' but found '{date_line}'")
 
     # Part line
     if part_line != part_number:
-        errors.append("ERROR: README part number mismatch")
+        errors.append(f"ERROR: README part number mismatch: expected '{part_number}' but found '{part_line}'")
 
     # Volume label line
     if not vol_line.startswith("Volume label: "):
-        errors.append("ERROR: README Volume label line malformed")
+        errors.append(f"ERROR: README Volume label line malformed: found '{vol_line}'")
     else:
         label = vol_line[len("Volume label: "):]
         if label.strip() == "" and label != "":
