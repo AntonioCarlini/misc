@@ -17,11 +17,14 @@ Options:
 """
 
 import argparse
+import calendar
+import hashlib
 import os
 import re
-import hashlib
-import calendar
 import sys
+import tarfile
+import tempfile
+
 
 # === Constants ===
 MIN_YEAR = 1990                 # No CDROM has a date earlier than this
@@ -78,6 +81,45 @@ def check_directory_files(path, dirname, verbose=False, check_sha256=False):
 
     return errors
 
+# Check the contents of a tar archive (.tar.xz, .tgz, etc.)
+def check_archive(archive_path, args, error_dirs):
+    if args.verbose:
+        print(f"Checking archive {archive_path}")
+
+    if not os.path.isfile(archive_path):
+        print(f"  Error: archive not found: {archive_path}")
+        return
+
+    # Detect compression type
+    mode = None
+    if archive_path.endswith(".tar.xz"):
+        mode = "r:xz"
+    elif archive_path.endswith(".tgz") or archive_path.endswith(".tar.gz"):
+        mode = "r:gz"
+    else:
+        print(f"  Error: unsupported archive type: {archive_path}")
+        return
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            with tarfile.open(archive_path, mode) as tar:
+                # Extract
+                tar.extractall(tmpdir)
+        except Exception as e:
+            print(f"  Error: could not extract archive {archive_path}: {e}")
+            return
+
+        # Find extracted root dirs
+        entries = [os.path.join(tmpdir, m) for m in os.listdir(tmpdir)]
+        dirs = [d for d in entries if os.path.isdir(d)]
+
+        if len(dirs) == 1:
+            check_directory_files(dirs[0], args, error_dirs)
+        else:
+            # Archive has multiple roots or no dirs → warn and try each dir
+            print(f"  Warning: archive {archive_path} contains {len(dirs)} root directories")
+            for d in dirs:
+                check_directory_files(d, args, error_dirs)
 
 def check_sha256_file(full_path, dirname, required_files, check_sha256):
     """Verify sha256sum.txt contains exactly required files, and optionally validate hashes."""
@@ -257,38 +299,52 @@ def check_ddrescue_information(block, dirname):
 # === Main ===
 def main():
     parser = argparse.ArgumentParser(description="Check CDROM directories")
-    parser.add_argument("--root", help="Root directory to check")
+    parser.add_argument("--check-archive", action="append", metavar="ARCHIVE",
+                    help="Check specified archive (.tar.xz, .tgz). May be given multiple times.")
     parser.add_argument("--check-dir", action="append", help="Specific directory to check")
-    parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--check-sha256", action="store_true")
+    parser.add_argument("--root", help="Root directory to check")
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    if args.root and args.check_dir:
-        print("Error: --root and --check-dir cannot be used together", file=sys.stderr)
+    # Collect targets
+    check_dirs = args.check_dir or []
+    check_archives = args.check_archive or []
+
+    if args.root and check_dirs:
+        print("Error: --check-dir and --root cannot be used together")
         sys.exit(1)
 
+    # Build set of directories to check using either --check-dir
     dirs_to_check = []
     if args.check_dir:
         dirs_to_check = args.check_dir
-    else:
+    elif not args.check_archive:
         root = args.root or os.getcwd()
         dirs_to_check = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))]
         dirs_to_check = [os.path.join(root, d) for d in dirs_to_check]
-
 
     # keep track of directories with errors
     error_dirs = []     # list of DIR with at least one error (in order encountered)
     error_counts = {}   # dict of DIR to "number of errors"
 
-    for d in dirs_to_check:
-        dirname = os.path.basename(d)
-        if DIR_PATTERN.match(dirname):
-            verbose_print(args.verbose, f"Checking {dirname}")
-        else:
-            if args.verbose:
-                verbose_print(True, f"Ignoring {dirname}")
-            continue
-        errors = check_directory_files(os.path.dirname(d), dirname, args.verbose, args.check_sha256)
+
+    if check_archives:
+        # Check any archives
+        for archive in check_archives:
+            verbose_print(args.verbose, f"Checking archive {archive}")
+            check_archive(archive, args, error_dirs)
+
+    if len(dirs_to_check) > 0:
+        for d in dirs_to_check:
+            dirname = os.path.basename(d)
+            if DIR_PATTERN.match(dirname):
+                verbose_print(args.verbose, f"Checking directory {dirname}")
+            else:
+                if args.verbose:
+                    verbose_print(True, f"Ignoring {dirname}")
+                    continue
+            errors = check_directory_files(os.path.dirname(d), dirname, args.verbose, args.check_sha256)
 
         if (len(errors) > 0) and (not args.verbose):
             print(f"Checking {dirname} found:")
@@ -298,7 +354,10 @@ def main():
         if errors:
             error_dirs.append(d)
             error_counts[d] = len(errors)
+            check_directory_files(d, args, error_dirs)
+
             
+
     # Report a summary
     if error_dirs:
         for d in error_dirs:
@@ -308,6 +367,7 @@ def main():
     else:
         if args.verbose:
             print("No errors found")
-            
+
+
 if __name__ == "__main__":
     main()
