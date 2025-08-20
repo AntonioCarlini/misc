@@ -275,6 +275,11 @@ def main():
         dirs_to_check = [d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))]
         dirs_to_check = [os.path.join(root, d) for d in dirs_to_check]
 
+
+    # keep track of directories with errors
+    error_dirs = []     # list of DIR with at least one error (in order encountered)
+    error_counts = {}   # dict of DIR to "number of errors"
+
     for d in dirs_to_check:
         dirname = os.path.basename(d)
         if DIR_PATTERN.match(dirname):
@@ -284,8 +289,25 @@ def main():
                 verbose_print(True, f"Ignoring {dirname}")
             continue
         errors = check_directory_files(os.path.dirname(d), dirname, args.verbose, args.check_sha256)
+
+        if (len(errors) > 0) and (not args.verbose):
+            print(f"Checking {dirname} found:")
         for e in errors:
             print("  " + e)
 
+        if errors:
+            error_dirs.append(d)
+            error_counts[d] = len(errors)
+            
+    # Report a summary
+    if error_dirs:
+        for d in error_dirs:
+            count = error_counts[d]
+            issue_word = "issue" if count == 1 else "issues"
+            print(f"ERRORS in {d} ({count} {issue_word})")
+    else:
+        if args.verbose:
+            print("No errors found")
+            
 if __name__ == "__main__":
     main()
