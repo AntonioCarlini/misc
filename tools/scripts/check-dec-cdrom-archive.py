@@ -103,8 +103,22 @@ def check_archive(archive_path, args, error_dirs):
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
             with tarfile.open(archive_path, mode) as tar:
-                # Extract
-                tar.extractall(tmpdir)
+                members = tar.getmembers()
+                # If not verifying checksums, skip extracting large .iso files
+                filtered = []
+                for m in members:
+                    name_lower = m.name.lower()
+                    if name_lower.endswith(".iso") and not args.check_sha:
+                        # Create empty placeholder file instead of extracting ISO
+                        iso_path = os.path.join(tmpdir, m.name)
+                        os.makedirs(os.path.dirname(iso_path), exist_ok=True)
+                        open(iso_path, "wb").close()  # idiomatic creation of empty file
+                        print(f"Info: extraction of ISO file suppressed; placeholder created: {m.name}")
+                        continue  # Avoid adding the ISO filename to the filtered set
+                    filtered.append(m)
+
+                tar.extractall(tmpdir, members=filtered)
+
         except Exception as e:
             print(f"  Error: could not extract archive {archive_path}: {e}")
             return
