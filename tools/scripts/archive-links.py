@@ -40,8 +40,52 @@ ARCHIVE_SAVE_URL = "https://web.archive.org/save/"
 ARCHIVE_AVAILABILITY_URL = "https://archive.org/wayback/available"
 
 
+# denylist.py
+
+DO_NOT_ARCHIVE_LIST = {
+    "archive.org",
+    "web.archive.org",
+    "drive.google.com",
+    "docs.google.com",
+    "mail.google.com",
+    "accounts.google.com",
+    "calendar.google.com",
+    "dropbox.com",
+    "facebook.com",
+    "instagram.com",
+    "whatsapp.com",
+    "youtube.com",       # note: metadata may archive, but not video
+    "youtu.be",
+    "netflix.com",
+    "spotify.com",
+    "twitch.tv",
+}
+
+def do_not_archive(url: str, always_verify: bool = False) -> bool:
+    """
+    Return True if the URL is in the denylist and should be skipped.
+    If always_verify=True, bypass the denylist (always return False).
+    """
+    if always_verify:
+        return False
+
+    from urllib.parse import urlparse
+    host = urlparse(url).netloc.lower()
+
+    # Exact or subdomain matches
+    for blocked in DO_NOT_ARCHIVE_LIST:
+        if host == blocked or host.endswith("." + blocked):
+            return True
+    return False
+
 def check_already_archived(url: str) -> bool:
     """Return True if the URL is already archived in the Wayback Machine."""
+    # First check if the request is even worth making
+    if do_not_archive(url, always_verify=False):
+        print(f"Skipping {url} (marked DO NOT ARCHIVE)")
+        return False
+
+    # Now see if the URL is already archived
     try:
         resp = requests.get(ARCHIVE_AVAILABILITY_URL, params={"url": url}, timeout=30)
         resp.raise_for_status()
@@ -54,6 +98,11 @@ def check_already_archived(url: str) -> bool:
 
 def submit_to_archive(url: str) -> bool:
     """Submit a URL to archive.org for saving. Returns True if request succeeded."""
+    # First check if the request is even worth making
+    if do_not_archive(url, always_verify=False):
+        print(f"Skipping {url} (denylist)")
+        return False
+
     try:
         resp = requests.get(ARCHIVE_SAVE_URL + url, timeout=90)
         if resp.status_code in (200, 302):
