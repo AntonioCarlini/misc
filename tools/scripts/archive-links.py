@@ -82,7 +82,7 @@ def check_already_archived(url: str) -> bool:
     """Return True if the URL is already archived in the Wayback Machine."""
     # First check if the request is even worth making
     if do_not_archive(url, always_verify=False):
-        print(f"Skipping {url} (marked DO NOT ARCHIVE)")
+        print(f"DO NOT ARCHIVE:          {url}")
         return False
 
     # Now see if the URL is already archived
@@ -100,7 +100,7 @@ def submit_to_archive(url: str) -> bool:
     """Submit a URL to archive.org for saving. Returns True if request succeeded."""
     # First check if the request is even worth making
     if do_not_archive(url, always_verify=False):
-        print(f"Skipping {url} (denylist)")
+        # No need to issue a message as check_already_archived() will have done this
         return False
 
     try:
@@ -142,21 +142,21 @@ def process_csv(csv_file, summary=False, verbose=False, verify=False, limit=0, *
             already_archived = check_already_archived(url)
             if verify:
                 if already_archived:
-                    print(f"[SKIP] Already archived: {page} -> {url}")
+                    print(f"[SKIP] Already archived: {url}")
                     urls_skipped += 1
                     continue
                 else:
-                    print(f"NOT archived:            {page} -> {url}")
+                    print(f"NOT archived:            {url}")
                     continue
 
             if already_archived:
                 urls_skipped += 1
             else:
                 urls_archived += 1
-                print(f"[ARCHIVE] Submitting: {page} -> {url}")
+                print(f"[ARCHIVE] Submitting:    {url}")
                 ok = submit_to_archive(url)
                 if ok:
-                    print(f"[DONE] Archived: {url}")
+                    print(f"[DONE] Archived:         {url}")
                 time.sleep(2)  # be polite to archive.org
     if summary:
         print("Summary")
