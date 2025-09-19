@@ -19,8 +19,15 @@ Arguments:
                   - page_title
                   - external_url
 Options:
+    --limit       Only consider this many URLs; once the limit is reached, stop
+
+    --summary     Generate summary statistics at the end 
+    
+    --verbose     
+
     --verify      Before archiving, check the availability API to avoid
                   re-submitting URLs already present in the archive.
+
 """
 
 import argparse
@@ -58,15 +65,28 @@ def submit_to_archive(url: str) -> bool:
         return False
 
 
-def process_csv(csv_file: str, verify: bool):
+def process_csv(csv_file, summary=False, verbose=False, verify=False, limit=0, **unused):
     """Process the CSV and attempt to archive or verify URLs."""
+    urls_read = 0
+    urls_considered = 0
+    urls_skipped = 0
+    urls_archived = 0
+
     print(f"Processing {csv_file}")
     with open(csv_file, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            urls_read += 1
+
+            # Honour the --limit if one was specified (and valid)
+            if (limit > 0) and (urls_read > limit):
+                break
+
+            urls_considered += 1
             url = row.get("External Link")
             page = row.get("Page")
-            print(f"Page={page}   URL={url}")
+            if verbose:
+                print(f"Considering Page={page}   URL={url}")
             if not url:
                 continue
 
@@ -74,27 +94,43 @@ def process_csv(csv_file: str, verify: bool):
             if verify:
                 if already_archived:
                     print(f"[SKIP] Already archived: {page} -> {url}")
+                    urls_skipped += 1
                     continue
                 else:
                     print(f"NOT archived:            {page} -> {url}")
                     continue
 
-            if not already_archived:
+            if already_archived:
+                urls_skipped += 1
+            else:
+                urls_archived += 1
                 print(f"[ARCHIVE] Submitting: {page} -> {url}")
                 ok = submit_to_archive(url)
                 if ok:
                     print(f"[DONE] Archived: {url}")
                 time.sleep(2)  # be polite to archive.org
-
+    if summary:
+        print("Summary")
+        print("URLs considered:           ", urls_considered)
+        print("URLs already archived:     ", urls_skipped)
+        print("URLs submitted to archive: ", urls_archived)
 
 def main():
     parser = argparse.ArgumentParser(description="Archive external links to archive.org")
-    parser.add_argument("csvfile", help="Input CSV with page_title, external_url columns")
+    parser.add_argument("csv_file", help="Input CSV with page_title, external_url columns")
     parser.add_argument("--verify", action="store_true",
-                        help="Check availability first, only archive if missing")
+                        help="Check availability in archive")
+    parser.add_argument("--verbose", action="store_true",
+                        help="In verbose mode display more information")
+    parser.add_argument("--summary", action="store_true",
+                        help="Display summary statistics")
+    parser.add_argument("--limit", type=int, default=0, 
+                        help="Maximum number of URLs to consider")
     args = parser.parse_args()
 
-    process_csv(args.csvfile, args.verify)
+    keywords = vars(args)
+
+    process_csv(**keywords)
 
 if __name__ == "__main__":
     main()
