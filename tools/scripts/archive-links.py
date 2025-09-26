@@ -32,15 +32,53 @@ Options:
 
 import argparse
 import csv
-import requests
+from datetime import date
 import time
 
+import requests
 
 ARCHIVE_SAVE_URL = "https://web.archive.org/save/"
 ARCHIVE_AVAILABILITY_URL = "https://archive.org/wayback/available"
 
 
-# denylist.py
+# Type alias for clarity: maps URL → [date, status]
+HistoryData = dict[str, list[str]]
+
+def load_history(path: str) -> HistoryData:
+    """
+    Load history CSV into a dictionary mapping URL to [date, status].
+
+    CSV format: URL,date,status
+    - date: YYYY-MM-DD
+    - status: "archived" or ""
+    """
+    history: HistoryData = {}
+
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            url = row["URL"].strip()
+            date = row["date"].strip()
+            status = row["status"].strip()
+            history[url] = [date, status]
+
+    return history
+
+def store_history(path: str, history: HistoryData) -> bool:
+    """
+    Write history dict back to CSV.
+
+    Returns True if successful, False if no history was written.
+    """
+    if not path or not history:
+        return False
+
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["URL", "date", "status"])
+        for url, (date, status) in history.items():
+            writer.writerow([url, date, status])
+    return True
 
 DO_NOT_ARCHIVE_LIST = {
     "archive.org",
@@ -114,12 +152,16 @@ def submit_to_archive(url: str) -> bool:
         return False
 
 
-def process_csv(csv_file, summary=False, verbose=False, verify=False, limit=0, **unused):
+def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=False, limit=0, **unused):
     """Process the CSV and attempt to archive or verify URLs."""
+
+    history = load_history(history_data) if history_data else {}
+
     urls_read = 0
     urls_considered = 0
     urls_skipped = 0
     urls_archived = 0
+    urls_in_history = 0
 
     print(f"Processing {csv_file}")
     with open(csv_file, newline="", encoding="utf-8") as f:
@@ -139,10 +181,19 @@ def process_csv(csv_file, summary=False, verbose=False, verify=False, limit=0, *
             if not url:
                 continue
 
+            # If URL exists in history, then skip
+            if history.get(url, ["", ""])[1] == "archived":
+                urls_in_history += 1
+                if verbose:
+                    print(f"Skipping URL archived in history: {url}")
+                continue
+
             already_archived = check_already_archived(url)
             if verify:
                 if already_archived:
                     print(f"[SKIP] Already archived: {url}")
+                    today = date.today().strftime("%Y-%m-%d")
+                    history[url] = [today, "archived"]
                     urls_skipped += 1
                     continue
                 else:
@@ -150,17 +201,27 @@ def process_csv(csv_file, summary=False, verbose=False, verify=False, limit=0, *
                     continue
 
             if already_archived:
+                today = date.today().strftime("%Y-%m-%d")
+                history[url] = [today, "archived"]
                 urls_skipped += 1
             else:
                 urls_archived += 1
                 print(f"[ARCHIVE] Submitting:    {url}")
                 ok = submit_to_archive(url)
                 if ok:
+                    today = date.today().strftime("%Y-%m-%d")
+                    history[url] = [today, "archived"]
                     print(f"[DONE] Archived:         {url}")
                 time.sleep(2)  # be polite to archive.org
+
+    # Store the history data, if --history-data was specified
+    if history_data:
+        store_history(history_data, history)
+
     if summary:
         print("Summary")
-        print("URLs considered:           ", urls_considered)
+        print("URLs already archived:     ", urls_skipped)
+        print("URLs in history data:      ", urls_in_history)
         print("URLs already archived:     ", urls_skipped)
         print("URLs submitted to archive: ", urls_archived)
 
@@ -175,6 +236,8 @@ def main():
                         help="Display summary statistics")
     parser.add_argument("--limit", type=int, default=0, 
                         help="Maximum number of URLs to consider")
+    parser.add_argument("--history-data",  metavar="FILE",
+        help="CSV file with columns URL,date,status")
     args = parser.parse_args()
 
     keywords = vars(args)
