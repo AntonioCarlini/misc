@@ -42,11 +42,12 @@ import requests
 ARCHIVE_SAVE_URL = "https://web.archive.org/save/"
 ARCHIVE_AVAILABILITY_URL = "https://archive.org/wayback/available"
 
-
 class ArchiveResult(Enum):
-    SUCCESS = auto()
-    FAILURE = auto()
-    BLOCKED = auto()
+    SUCCESS = auto()   # Archived
+    FAILURE = auto()   # Retry in the normal loop
+    BLOCKED = auto()   # Blacklisted by this script
+    COOLDOWN = auto()  # Temporary failure, wait N days before retry
+    FROZEN = auto()    # Permanent failure, don’t retry
 
 # Type alias for clarity: maps URL → [date, status]
 HistoryData = dict[str, list[str]]
@@ -146,7 +147,12 @@ def check_already_archived(url: str) -> bool:
 
 
 def submit_to_archive(url: str) -> ArchiveResult:
-    """Submit a URL to archive.org for saving. Returns True if request succeeded."""
+    """
+    Submit a URL to archive.org for saving.
+
+    Returns:
+        ArchiveResult indicating how the caller should handle retries.
+    """
     # First check if the request is even worth making
     if do_not_archive(url, always_verify=False):
         # No need to issue a message as check_already_archived() will have done this
@@ -156,10 +162,39 @@ def submit_to_archive(url: str) -> ArchiveResult:
         resp = requests.get(ARCHIVE_SAVE_URL + url, timeout=90)
         if resp.status_code in (200, 302):
             return ArchiveResult.SUCCESS
-        print(f"Failed to archive {url}: HTTP {resp.status_code}")
+
+        # Permanent failures — retrying won’t help
+        if resp.status_code in (400, 403, 451):
+            print(f"FROZEN: {url} cannot be archived (HTTP {resp.status_code})")
+            return ArchiveResult.FROZEN
+
+        # “Origin error” (Cloudflare 520) is effectively permanent for sites that block Archive.org 
+        if resp.status_code == 520:
+            print(f"FROZEN: {url} refused by origin (HTTP 520)")
+            return ArchiveResult.FROZEN
+
+        # Transient server-side errors → try again later
+        if resp.status_code in (429, 500, 502, 503, 504):
+            print(f"COOLDOWN: {url} server returned {resp.status_code}, retry after pause")
+            return ArchiveResult.COOLDOWN
+
+        # Everything else — generic failure, eligible for normal retry
+        print(f"FAILURE: {url} unexpected HTTP {resp.status_code}")
         return ArchiveResult.FAILURE
+
+    except requests.exceptions.ConnectionError as e:
+        # Connection refused, DNS failure, etc. — usually transient
+        print(f"COOLDOWN: {url} connection error: {e}")
+        return ArchiveResult.COOLDOWN
+
+    except requests.exceptions.Timeout as e:
+        # Timeout is usually transient
+        print(f"COOLDOWN: {url} timeout: {e}")
+        return ArchiveResult.COOLDOWN
+
     except Exception as e:
-        print(f"Error archiving {url}: {e}")
+        # Catch-all for anything else — treat as a normal failure
+        print(f"FAILURE: {url} unexpected error: {e}")
         return ArchiveResult.FAILURE
 
 
@@ -208,6 +243,16 @@ def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=
                 if verbose:
                     print(f"Skipping URL blocked in history: {url}")
                 continue
+            if history.get(url, ["", ""])[1] == "cooldown":
+                urls_in_history += 1
+                if verbose:
+                    print(f"Skipping URL marked cooldown in history: {url}")
+                continue
+            if history.get(url, ["", ""])[1] == "frozen":
+                urls_in_history += 1
+                if verbose:
+                    print(f"Skipping URL frozen in history: {url}")
+                continue
 
             already_archived = check_already_archived(url)
             if verify:
@@ -237,6 +282,12 @@ def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=
                     case ArchiveResult.BLOCKED:
                         today = date.today().strftime("%Y-%m-%d")
                         history[url] = [today, "blocked"]
+                    case ArchiveResult.COOLDOWN:
+                        today = date.today().strftime("%Y-%m-%d")
+                        history[url] = [today, "cooldown"]
+                    case ArchiveResult.FROZEN:
+                        today = date.today().strftime("%Y-%m-%d")
+                        history[url] = [today, "frozen"]
                     case ArchiveResult.FAILURE:
                         # Failure doesn't log anything in the history
                         pass
