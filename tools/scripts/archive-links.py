@@ -33,13 +33,20 @@ Options:
 import argparse
 import csv
 from datetime import date
+from enum import Enum, auto
 import time
+from urllib.parse import urlparse
 
 import requests
 
 ARCHIVE_SAVE_URL = "https://web.archive.org/save/"
 ARCHIVE_AVAILABILITY_URL = "https://archive.org/wayback/available"
 
+
+class ArchiveResult(Enum):
+    SUCCESS = auto()
+    FAILURE = auto()
+    BLOCKED = auto()
 
 # Type alias for clarity: maps URL → [date, status]
 HistoryData = dict[str, list[str]]
@@ -116,6 +123,10 @@ def do_not_archive(url: str, always_verify: bool = False) -> bool:
             return True
     return False
 
+def can_be_archived(url: str) -> bool:
+    scheme = urlparse(url).scheme.lower()
+    return scheme in {"http", "https"}
+
 def check_already_archived(url: str) -> bool:
     """Return True if the URL is already archived in the Wayback Machine."""
     # First check if the request is even worth making
@@ -134,22 +145,22 @@ def check_already_archived(url: str) -> bool:
         return False
 
 
-def submit_to_archive(url: str) -> bool:
+def submit_to_archive(url: str) -> ArchiveResult:
     """Submit a URL to archive.org for saving. Returns True if request succeeded."""
     # First check if the request is even worth making
     if do_not_archive(url, always_verify=False):
         # No need to issue a message as check_already_archived() will have done this
-        return False
+        return ArchiveResult.BLOCKED
 
     try:
         resp = requests.get(ARCHIVE_SAVE_URL + url, timeout=90)
         if resp.status_code in (200, 302):
-            return True
+            return ArchiveResult.SUCCESS
         print(f"Failed to archive {url}: HTTP {resp.status_code}")
-        return False
+        return ArchiveResult.FAILURE
     except Exception as e:
         print(f"Error archiving {url}: {e}")
-        return False
+        return ArchiveResult.FAILURE
 
 
 def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=False, limit=0, **unused):
@@ -162,6 +173,7 @@ def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=
     urls_skipped = 0
     urls_archived = 0
     urls_in_history = 0
+    urls_not_supported = 0
 
     print(f"Processing {csv_file}")
     with open(csv_file, newline="", encoding="utf-8") as f:
@@ -181,11 +193,20 @@ def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=
             if not url:
                 continue
 
+            if not can_be_archived(url):
+                urls_not_supported += 1
+                print(f"Considering Page={page}   URL={url}")
+                continue
             # If URL exists in history, then skip
             if history.get(url, ["", ""])[1] == "archived":
                 urls_in_history += 1
                 if verbose:
                     print(f"Skipping URL archived in history: {url}")
+                continue
+            if history.get(url, ["", ""])[1] == "blocked":
+                urls_in_history += 1
+                if verbose:
+                    print(f"Skipping URL blocked in history: {url}")
                 continue
 
             already_archived = check_already_archived(url)
@@ -208,10 +229,18 @@ def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=
                 urls_archived += 1
                 print(f"[ARCHIVE] Submitting:    {url}")
                 ok = submit_to_archive(url)
-                if ok:
-                    today = date.today().strftime("%Y-%m-%d")
-                    history[url] = [today, "archived"]
-                    print(f"[DONE] Archived:         {url}")
+                match ok:
+                    case ArchiveResult.SUCCESS:
+                        today = date.today().strftime("%Y-%m-%d")
+                        history[url] = [today, "archived"]
+                        print(f"[DONE] Archived:         {url}")
+                    case ArchiveResult.BLOCKED:
+                        today = date.today().strftime("%Y-%m-%d")
+                        history[url] = [today, "blocked"]
+                    case ArchiveResult.FAILURE:
+                        # Failure doesn't log anything in the history
+                        pass
+                        
                 time.sleep(2)  # be polite to archive.org
 
     # Store the history data, if --history-data was specified
@@ -220,10 +249,11 @@ def process_csv(csv_file, history_data="", summary=False, verbose=False, verify=
 
     if summary:
         print("Summary")
-        print("URLs already archived:     ", urls_skipped)
-        print("URLs in history data:      ", urls_in_history)
-        print("URLs already archived:     ", urls_skipped)
-        print("URLs submitted to archive: ", urls_archived)
+        print("URLs considered:                   ", urls_considered)
+        print("URLs not supported by archive.org: ", urls_not_supported)
+        print("URLs already archived:             ", urls_skipped)
+        print("URLs in history data:              ", urls_in_history)
+        print("URLs submitted to archive:         ", urls_archived)
 
 def main():
     parser = argparse.ArgumentParser(description="Archive external links to archive.org")
