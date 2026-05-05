@@ -161,9 +161,6 @@ def login_to_iet(driver, username, password):
         
         logging.info("Credentials entered into cleared fields.")
 
-        # STEP 4: SUBMIT
-        safe_click(driver, submit_button)
-
         # --- STEP 4: SUBMIT ---
         # This is where the last intercept happened; safe_click will bypass it
         safe_click(driver, submit_button)
