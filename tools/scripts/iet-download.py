@@ -1,5 +1,33 @@
 #!/usr/bin/env python3
 
+"""
+IET E&T Magazine Downloader
+
+Purpose:
+    This script automates the process of downloading individual article PDFs 
+    for a specific volume and issue of the IET Engineering & Technology (E&T) magazine. 
+    It handles the multi-step member login process.
+
+Sequence of Actions:
+    1. Parses command-line arguments to determine the target volume, issue, and delay parameters.
+    2. Loads user login credentials from a local configuration file.
+    3. Initialises a Chrome browser using undetected-chromedriver, configured 
+       to automatically download PDFs to a designated local folder without prompting.
+    4. Navigates to the issue's Table of Contents (TOC) page and attempts an automated login,
+       dismissing cookie overlays and clearing pre-filled fields as necessary.
+    5. Pauses to allow the user to manually verify the page state or solve any captchas.
+    6. Scrapes all unique ePDF article links from the TOC.
+    7. Iterates through the links, downloading each PDF sequentially.
+    8. Waits for the file system to confirm the download is complete, then renames the file 
+       using a standardized VxxNxx prefix
+    9  Applies a randomised delay between downloads to reduce server system stress.
+
+External Libraries Used:
+    - undetected-chromedriver: A heavily optimized Selenium WebDriver patch.
+    - selenium: Used for programmatic web navigation, element selection (XPath, ID, Class), 
+      and interacting with the DOM (clicking, typing).
+"""
+
 import argparse
 import logging
 import os
@@ -26,6 +54,9 @@ logging.basicConfig(
 # ---------------------------------------------------------------------------
 # CLI parsing & Formatting
 # ---------------------------------------------------------------------------
+
+# Parses user inputs from the command line, establishing the volume, issue, 
+# Chrome profile directory, and the base delay to use between downloads.
 def parse_cli():
     parser = argparse.ArgumentParser(description="Download IET E and T issue PDFs")
     parser.add_argument("volume", help="Volume, e.g. v4 or V04")
@@ -53,10 +84,12 @@ def parse_cli():
         return vol, iss, args.profile, args.delay # Added delay to return
     except Exception as e:
         raise SystemExit(f"Invalid arguments: {e}")
-    
+
+# Generates a standardised, zero-padded string (e.g., "V04N12") used for naming folders and files.    
 def format_prefix(volume, issue):
     return f"V{volume:02d}N{issue:02d}"
 
+# Creates the target directory for the downloaded PDFs in the current working directory.
 def prepare_output_dir(prefix):
     path = Path.cwd() / prefix
     path.mkdir(parents=True, exist_ok=True)
@@ -65,6 +98,9 @@ def prepare_output_dir(prefix):
 # ---------------------------------------------------------------------------
 # Load config
 # ---------------------------------------------------------------------------
+
+# Reads the user's IET credentials from ~/.config/iet/iet.
+# Gracefully ignores whitespace and formatting inconsistencies to extract the username and password.
 def load_iet_config():
     config_path = os.path.expanduser("~/.config/iet/iet")
     creds = {"user": None, "password": None}
@@ -100,6 +136,8 @@ def load_iet_config():
 
 from selenium.common.exceptions import ElementClickInterceptedException, TimeoutException
 
+# Executes a standard click on a web element, falling back to a direct JavaScript click 
+# if a transparent overlay (like a cookie banner) intercepts the standard interaction.
 def safe_click(driver, element):
     """
     Attempts a standard click; if blocked by an overlay, forces a JavaScript click.
@@ -110,6 +148,9 @@ def safe_click(driver, element):
         logging.info("Click intercepted by overlay; forcing click via JavaScript.")
         driver.execute_script("arguments[0].click();", element)
 
+# Navigates the complex IET login sequence.
+# It attempts to clear cookie banners, navigates the dropdown login menu, aggressively wipes 
+# pre-filled data from the input fields using keyboard shortcuts, and submits the user credentials.
 def login_to_iet(driver, username, password):
     """
     Handles the login process, forcing clicks through the cookie overlay if necessary.
@@ -177,6 +218,10 @@ def login_to_iet(driver, username, password):
 # ---------------------------------------------------------------------------
 # Browser Setup
 # ---------------------------------------------------------------------------
+
+# Configures and launches a stealth Chrome instance.
+# Sets up a persistent user profile and modifies browser preferences to force PDFs 
+# to download silently to the target directory rather than opening in the browser's PDF viewer.
 def setup_browser(output_dir, profile_name):
     options = uc.ChromeOptions()
     
@@ -203,6 +248,9 @@ def setup_browser(output_dir, profile_name):
 # ---------------------------------------------------------------------------
 # Navigation & Download Logic
 # ---------------------------------------------------------------------------
+
+# Navigates to the issue's Table of Contents, pauses for human verification (to handle captchas), 
+# and scrapes the DOM for all unique article PDF links, preserving their original order.
 def get_pdf_links(driver, toc_url):
     logging.info(f"Navigating to TOC: {toc_url}")
     driver.get(toc_url)
@@ -225,6 +273,10 @@ def get_pdf_links(driver, toc_url):
     logging.info(f"Found {len(unique_links)} unique PDF links.")
     return unique_links
 
+# Iterates over the scraped links to download each PDF.
+# Monitors the local file system to detect when a download finishes (ignoring Chrome's temporary 
+# .crdownload files), renames the completed file to a clean format, and applies a randomised 
+# delay before requesting the next file to ease server load and prevent rate-limiting.
 def download_issue(driver, links, output_dir, prefix, base_delay):
     for i, epdf_url in enumerate(links, start=1):
         pdf_url = epdf_url.replace("/epdf/", "/pdf/") + "?download=true"
@@ -265,6 +317,16 @@ def download_issue(driver, links, output_dir, prefix, base_delay):
 # ---------------------------------------------------------------------------
 # Main Execution
 # ---------------------------------------------------------------------------
+
+# The primary function.
+# Ties together
+#   o CLI parsing,
+#   o browser initialisation,
+#   o credential loading,
+#   o authentication, 
+#   o the download loop, 
+# 
+# Ensures the browser safely quits upon completion or failure.
 def main():
     volume, issue, profile, delay = parse_cli() # Added delay
     prefix = format_prefix(volume, issue)
