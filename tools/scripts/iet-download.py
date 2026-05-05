@@ -1,186 +1,306 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-# wget -N http://chromedriver.storage.googleapis.com/2.9/chromedriver_linux64.zip -P ~/Downloads
-# unzip ~/Downloads/chromedriver_linux64.zip -d ~/Downloads
-# chmod +x ~/Downloads/chromedriver
-# sudo mv -f ~/Downloads/chromedriver /usr/local/share/chromedriver
-# sudo ln -s /usr/local/share/chromedriver /usr/local/bin/chromedriver
-# sudo ln -s /usr/local/share/chromedriver /usr/bin/chromedriver
-# usename: 
-# password: 
+import argparse
+import logging
+import os
+import re
+import time
+import random
+from pathlib import Path
 
-from selenium import webdriver
+# Use undetected_chromedriver instead of standard selenium
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from os.path import expanduser
 
-import argparse
-import os
-import re
-import time
+# ---------------------------------------------------------------------------
+# Logging setup
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s: %(message)s"
+)
 
-# Function to ensure the download area exists
-def make_download_area_name(volume_number, issue_number):
-    return "/home/antonioc/Downloads/IEE-V{:02d}-N{:02d}".format(volume_number, issue_number)
-
-
-# Function to ensure that the magazine-specific download area exists
-def create_download_area(download_area_full_path):
-    # os.makedirs() raises an exception if the requested directory path already exists.
-    # python 3 has os.makedirs(path, exist_ok = True) but python 2 does not so trap and ignore the error instead
-    try:
-        os.makedirs(download_area_full_path)
-    except OSError, e:
-        if e.errno != os.errno.EEXIST:
-            raise   
-        pass
-
-
-# Configure and activate the Chrome browser
-def use_chrome_browser(download_area_full_path):
-    options = webdriver.ChromeOptions()
-    #options.add_argument('--ignore-certificate-errors')
-    #options.add_argument("--test-type")
-    #options.binary_location = "/usr/bin/google-chrome"
-
-    profile = {"plugins.plugins_list": [{"enabled":False,"name":"Chrome PDF Viewer"}], "download.default_directory" : download_area_full_path}
-    options.add_experimental_option("prefs", profile)
-
-    driver = webdriver.Chrome(chrome_options = options)
-    driver = webdriver.Chrome()
-
-    driver.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
-    params = {'cmd': 'Page.setDownloadBehavior', 'params': {'behavior': 'allow', 'downloadPath': dl_tgt}}
-    command_result = driver.execute("send_command", params)
-
-    return driver
-
-# Configure and activate the Firefox browser
-def use_firefox_browser(download_area_full_path):
-    mime_types = "application/pdf,application/vnd.adobe.xfdf,application/vnd.fdf,application/vnd.adobe.xdp+xml"
-
-    profile = webdriver.FirefoxProfile()
-    profile.set_preference("browser.download.folderList", 2)
-    profile.set_preference("browser.download.manager.showWhenStarting", False)
-    profile.set_preference("browser.download.dir", dl_tgt)
-    profile.set_preference("browser.helperApps.neverAsk.saveToDisk", mime_types)
-    profile.set_preference("plugin.disable_full_page_plugin_for_types", mime_types)
-    profile.set_preference("pdfjs.disabled", True)
-    profile.set_preference("browser.link.open_newwindow.restriction", 0)
-    profile.set_preference("browser.link.open_newwindow", 1)
-    profile.set_preference("plugin.scan.plid.all", False)
-    profile.set_preference("plugin.scan.Acrobat", "99.0")
-    profile.set_preference("plugin.disable_full_page_plugin_for_types", "application/xpdf")
+# ---------------------------------------------------------------------------
+# CLI parsing & Formatting
+# ---------------------------------------------------------------------------
+def parse_cli():
+    parser = argparse.ArgumentParser(description="Download IET E and T issue PDFs")
+    parser.add_argument("volume", help="Volume, e.g. v4 or V04")
+    parser.add_argument("issue", help="Issue, e.g. n12 or N12")
+    parser.add_argument("--profile", "-p", 
+                        default="Chrome_Scraper_Profile", 
+                        help="Local Chrome profile folder name")
+    # New Delay Argument
+    parser.add_argument("--delay", "-d", 
+                        type=float,
+                        default=15.0, 
+                        help="Base delay in seconds between downloads (default: 15)")
     
-    driver = webdriver.Firefox(firefox_profile = profile)
+    args = parser.parse_args()
 
+    def extract_number(text, prefix):
+        text = text.strip().lower()
+        if not text.startswith(prefix):
+            raise ValueError(f"Expected {prefix} prefix in '{text}'")
+        return int(text[1:])
+
+    try:
+        vol = extract_number(args.volume, "v")
+        iss = extract_number(args.issue, "n")
+        return vol, iss, args.profile, args.delay # Added delay to return
+    except Exception as e:
+        raise SystemExit(f"Invalid arguments: {e}")
+    
+def format_prefix(volume, issue):
+    return f"V{volume:02d}N{issue:02d}"
+
+def prepare_output_dir(prefix):
+    path = Path.cwd() / prefix
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+# ---------------------------------------------------------------------------
+# Load config
+# ---------------------------------------------------------------------------
+def load_iet_config():
+    config_path = os.path.expanduser("~/.config/iet/iet")
+    creds = {"user": None, "password": None}
+    
+    if not os.path.exists(config_path):
+        logging.warning(f"Config file not found at {config_path}")
+        return None
+
+    try:
+        with open(config_path, 'r') as f:
+            for line in f:
+                # Ignore empty lines or lines without '='
+                if '=' not in line:
+                    continue
+                parts = line.split('=', 1)
+                key = parts[0].strip().lower()
+                val = parts[1].strip()
+                
+                if key == 'user':
+                    creds['user'] = val
+                elif key == 'password':
+                    creds['password'] = val
+                    
+        if creds['user'] and creds['password']:
+            return creds
+    except Exception as e:
+        logging.error(f"Error reading config: {e}")
+    return None
+
+# ---------------------------------------------------------------------------
+# Handle logging in to the website
+# ---------------------------------------------------------------------------
+
+from selenium.common.exceptions import ElementClickInterceptedException, TimeoutException
+
+def safe_click(driver, element):
+    """
+    Attempts a standard click; if blocked by an overlay, forces a JavaScript click.
+    """
+    try:
+        element.click()
+    except ElementClickInterceptedException:
+        logging.info("Click intercepted by overlay; forcing click via JavaScript.")
+        driver.execute_script("arguments[0].click();", element)
+
+def login_to_iet(driver, username, password):
+    """
+    Handles the login process, forcing clicks through the cookie overlay if necessary.
+    """
+    logging.info("Starting automated login sequence...")
+    wait = WebDriverWait(driver, 15)
+    
+    try:
+        # --- STEP 0: DISMISS COOKIE OVERLAY (if possible) ---
+        try:
+            # We look for the button with title="Allow Essential" you found
+            cookie_btn = WebDriverWait(driver, 7).until(
+                EC.element_to_be_clickable((By.XPATH, "//a[@title='Allow Essential']"))
+            )
+            safe_click(driver, cookie_btn)
+            logging.info("Cookie overlay dismissed.")
+            time.sleep(1) 
+        except Exception:
+            logging.info("Cookie overlay not found or already dismissed.")
+
+        # --- STEP 1: CLICK MAIN LOGIN TRIGGER ---
+        login_trigger = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "sign-in")))
+        safe_click(driver, login_trigger)
+        logging.info("Clicked main login trigger.")
+
+        # --- STEP 2: CLICK LOGIN IN DROPDOWN ---
+        dropdown_login = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//span[@class='head-login-popup__label' and contains(text(), 'Login')]")
+        ))
+        safe_click(driver, dropdown_login)
+        logging.info("Clicked 'Login' from the dropdown menu.")
+
+        # STEP 3: FILL LOGIN FIELDS
+        logging.info("Waiting for login fields...")
+        
+        user_field = wait.until(EC.visibility_of_element_located(
+            (By.XPATH, "//input[@type='email' or @type='text' or @name='loginfmt' or @id='email']")
+        ))
+        pass_field = driver.find_element(By.ID, "password")
+        submit_button = driver.find_element(By.ID, "next")
+
+        # --- THE ROBUST WIPE ---
+        # We use Control+A followed by Backspace to ensure the field is empty
+        for field, value in [(user_field, username), (pass_field, password)]:
+            field.click()
+            field.send_keys(Keys.CONTROL + "a")
+            field.send_keys(Keys.BACKSPACE)
+            field.send_keys(value)
+        
+        logging.info("Credentials entered into cleared fields.")
+
+        # STEP 4: SUBMIT
+        safe_click(driver, submit_button)
+
+        # --- STEP 4: SUBMIT ---
+        # This is where the last intercept happened; safe_click will bypass it
+        safe_click(driver, submit_button)
+        
+        # Wait to see if login succeeds (URL changes or modal disappears)
+        time.sleep(5)
+        logging.info("Login form submitted.")
+        
+    except Exception as e:
+        logging.warning(f"Automated login failed: {e}")
+        logging.info("You may need to finish logging in manually.")
+
+
+# ---------------------------------------------------------------------------
+# Browser Setup
+# ---------------------------------------------------------------------------
+def setup_browser(output_dir, profile_name):
+    options = uc.ChromeOptions()
+    
+    # Create an absolute path for the profile directory in the current working dir
+    profile_path = os.path.abspath(profile_name)
+    logging.info(f"Using Chrome profile at: {profile_path}")
+    
+    # Chrome uses --user-data-dir for profiles
+    options.add_argument(f"--user-data-dir={profile_path}")
+    
+    # Chrome preferences for silent PDF downloads
+    prefs = {
+        "download.default_directory": str(output_dir),
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "plugins.always_open_pdf_externally": True  # This forces download instead of opening the viewer
+    }
+    options.add_experimental_option("prefs", prefs)
+
+    # Initialize undetected-chromedriver
+    driver = uc.Chrome(options=options, version_main=138)
     return driver
 
-def fetch_password():
-    home = expanduser("~")
-    pwd_file_name = home + "/.iet"
-    with open(pwd_file_name) as pwd_file:
-        pwd = pwd_file.readline().strip()
-    return pwd
+# ---------------------------------------------------------------------------
+# Navigation & Download Logic
+# ---------------------------------------------------------------------------
+def get_pdf_links(driver, toc_url):
+    logging.info(f"Navigating to TOC: {toc_url}")
+    driver.get(toc_url)
+    
+    # --- MANUAL INTERVENTION STEP ---
+    print("\n" + "="*60)
+    print("ACTION REQUIRED:")
+    print(f"1. Check the Chrome window.")
+    print(f"2. Log in manually if required (and pass Cloudflare if it appears).")
+    print(f"3. Ensure you can see the article list on the page.")
+    print("="*60)
+    input("Press Enter here in the terminal once you are ready to start the download...")
 
-# Log in to the IET website, assuming the browser is on the journal TOC page
-def login_to_iet(username, password, driver):
-    # Click on the Login button to reveal the boxes
-    driver.find_element(By.XPATH, '//*[@id="loginBox"]/ul/li[1]/h4/a').click();
+    # Find all 'epdf' links
+    elements = driver.find_elements(By.XPATH, "//a[contains(@href, '/doi/epdf/')]")
+    links = [el.get_attribute("href") for el in elements]
+    
+    # Deduplicate while keeping order
+    unique_links = list(dict.fromkeys(links))
+    logging.info(f"Found {len(unique_links)} unique PDF links.")
+    return unique_links
 
-    # Click on "remember me". This button is not always present, so allow for that possibility.
-    remember_me = driver.find_elements_by_xpath('//*[@id="remember"]')
-    if len(remember_me) > 0:
-        # Wait for the "remember me" radio button to be visible before trying to click on it.
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH,'//*[@id="remember"]')))
-        remember_me[0].click()
+def download_issue(driver, links, output_dir, prefix, base_delay):
+    for i, epdf_url in enumerate(links, start=1):
+        pdf_url = epdf_url.replace("/epdf/", "/pdf/") + "?download=true"
+        
+        logging.info(f"[{i:02d}] Requesting: {pdf_url}")
+        
+        files_before = set(os.listdir(output_dir))
+        driver.get(pdf_url)
 
-    # Enter username and password. Hit RETURN in the password box
-    driver.find_element(By.XPATH, '//*[@id="signname"]').send_keys(username)
-    driver.find_element(By.XPATH, '//*[@id="signpsswd"]').send_keys(password + "\n")
+        if "Cloudflare" in driver.title or "Verify" in driver.title:
+            input("Cloudflare Block! Solve the captcha in the browser, then press Enter...")
 
-def volume_type(v):
-    min_volume = 1
-    max_volume = 12
-    v = int(v)
-    if (v < min_volume)  or (v > max_volume):
-        raise argparse.ArgumentTypeError("Journal Volume must be {}..{}".format(min_volume, max_volume))
-    return v
+        # Wait for download logic remains the same...
+        new_file = None
+        for _ in range(45):
+            time.sleep(1)
+            files_after = set(os.listdir(output_dir))
+            added_files = files_after - files_before
+            actual_files = [f for f in added_files if not f.endswith(('.part', '.crdownload', '.tmp'))]
+            if actual_files:
+                new_file = actual_files[0]
+                break
+        
+        if new_file:
+            # Rename logic remains the same...
+            old_path = output_dir / new_file
+            clean_name = re.sub(r'[^A-Za-z0-9._-]', '', new_file.replace(" ", "-"))
+            new_name = f"{prefix}-{i:02d}-{clean_name}"
+            os.rename(old_path, output_dir / new_name)
+            logging.info(f"[{i:02d}] Success: {new_name}")
+        
+        # Jitter implementation: base_delay +/- 5 seconds
+        wait_time = max(1, base_delay + random.uniform(-5, 5))
+        if i < len(links): # Don't wait after the very last file
+            logging.info(f"Sleeping for {wait_time:.2f} seconds...")
+            time.sleep(wait_time)
 
-def issue_type(i):
-    min_issue = 1
-    max_issue = 14
-    i = int(i)
-    if (i < min_issue) or (i > max_issue):
-        raise argparse.ArgumentTypeError("Journal Issue must be {}..{}".format(min_issue, max_issue))
-    return i
+# ---------------------------------------------------------------------------
+# Main Execution
+# ---------------------------------------------------------------------------
+def main():
+    volume, issue, profile, delay = parse_cli() # Added delay
+    prefix = format_prefix(volume, issue)
+    output_dir = prepare_output_dir(prefix)
 
-# Parse arguments
-parser = argparse.ArgumentParser(description = 'Select Volume and Issue')
-parser.add_argument('--volume', required = True, type = volume_type)
-parser.add_argument('--issue', required = True, type = issue_type)
+    logging.info(f"Starting archive of {prefix} with base delay {delay}s")
+    
+    # Load credentials
+    creds = load_iet_config()
+    
+    driver = setup_browser(output_dir, profile)
+    
+    try:
+        toc_url = f"https://digital-library.theiet.org/toc/et/{volume}/{issue}"
+        driver.get(toc_url)
 
-args = parser.parse_args()
+        # Attempt the login
+        if creds and driver.find_elements(By.CLASS_NAME, "sign-in"):
+            login_to_iet(driver, creds['user'], creds['password'])
+        else:
+            logging.info("No credentials found, proceeding to manual login/check.")
+        
+        links = get_pdf_links(driver, toc_url)
 
-vol = args.volume
-iss = args.issue
+        if links:
+            download_issue(driver, links, output_dir, prefix, delay) # Passed delay
+        else:
+            logging.warning("No links found.")
+        
+            
+    finally:
+        logging.info("Closing browser...")
+        driver.quit()
 
-# Main code starts here
-print("Starting IET journal retrieval for Volume {:02d} Issue {:02d}".format(vol, iss))
-
-# Create the download area
-dl_tgt = make_download_area_name(vol, iss)
-create_download_area(dl_tgt)
-
-# Start the relevant browser
-driver = use_chrome_browser(dl_tgt)
-
-# Say what's going on
-print("Downloading to [" + dl_tgt + "] using " + driver.capabilities['browserName'] + " " + driver.capabilities['version'])
-
-# Navigate to the journal page and log in
-password = fetch_password()
-driver.get("http://digital-library.theiet.org/content/journals/et/{:d}/{:d}".format(vol, iss))
-login_to_iet("arcarlini", password, driver)
-
-# Pick up the HTML source for the whole table of contents page
-html = driver.page_source
-
-# Drop everything after the text "Most viewed content for this Journal" because that includes further links to articles which would be erroneously downloaded
-viable = re.findall(r'\A(.*)<div class="headlinelarge"><h2>Most viewed content for this Journal</h2></div>', html, re.MULTILINE | re.DOTALL)
-
-# Pick up everything that looks like a link to an article in this journal
-# The relevant HTML looks like this:
-# <h5 class="browseItemTitle">
-# <a href="/content/journals/10.1049/et_20070106" title="" 
-# >Editor&apos;s comment</a></h5>
-
-result = re.findall(r'<h5 class="browseItemTitle">.*?<a href="(.*?)" title="".*?>(.*?)</a></h5>', viable[0], re.MULTILINE | re.DOTALL)
-
-# Loop through all the links to article pages
-for index, rs in enumerate(result):
-    link = "http://digital-library.theiet.org" + rs[0]
-    print ("Fetching [{:02d}] <link> = [{}] <title> = {}".format(index + 1, link, rs[1].encode('utf-8')))
-    # Move to the specific article page
-    driver.get(link)
-    # Within the article page there is a link to the PDF file for that article. Click that link.
-    link = driver.find_element_by_link_text('PDF')
-    link.click()
-    #actionChains = ActionChains(driver)
-    # In Firefox: right click, down arrow five times and hit RETURN to bring up the save dialog
-    #print("Right clicklink ...")
-    #actionChains.context_click(link).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.RETURN).perform()
-    #actionChains.context_click(link).key_down(Keys.CONTROL).send_keys("A").key_up(Keys.CONTROL).perform()
-    #print("pausing")
-    #time.sleep(100)
-    #print("breaking")
-    #break
-
-# For convenience, head back to the original TOC page.
-driver.get("http://digital-library.theiet.org/content/journals/et/{:d}/{:d}".format(vol, iss))
+if __name__ == "__main__":
+    main()
