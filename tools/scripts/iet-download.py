@@ -1,186 +1,332 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-# wget -N http://chromedriver.storage.googleapis.com/2.9/chromedriver_linux64.zip -P ~/Downloads
-# unzip ~/Downloads/chromedriver_linux64.zip -d ~/Downloads
-# chmod +x ~/Downloads/chromedriver
-# sudo mv -f ~/Downloads/chromedriver /usr/local/share/chromedriver
-# sudo ln -s /usr/local/share/chromedriver /usr/local/bin/chromedriver
-# sudo ln -s /usr/local/share/chromedriver /usr/bin/chromedriver
-# usename: 
-# password: 
+"""
+Download all PDFs from an IET E and T issue given volume and issue.
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from os.path import expanduser
+Design notes:
+- Selenium is used only for authentication
+- requests is used for all downloads
+- BeautifulSoup is used for HTML parsing
+- Errors are logged but do not stop the run unless fatal
+
+Requirements:
+    pip install selenium requests beautifulsoup4
+
+A working WebDriver (Chrome or Firefox) is required.
+"""
 
 import argparse
+import logging
 import os
 import re
 import time
+from pathlib import Path
 
-# Function to ensure the download area exists
-def make_download_area_name(volume_number, issue_number):
-    return "/home/antonioc/Downloads/IEE-V{:02d}-N{:02d}".format(volume_number, issue_number)
+import requests
+from bs4 import BeautifulSoup
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 
-# Function to ensure that the magazine-specific download area exists
-def create_download_area(download_area_full_path):
-    # os.makedirs() raises an exception if the requested directory path already exists.
-    # python 3 has os.makedirs(path, exist_ok = True) but python 2 does not so trap and ignore the error instead
+# ---------------------------------------------------------------------------
+# Logging setup
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s: %(message)s"
+)
+
+
+# ---------------------------------------------------------------------------
+# CLI parsing
+# ---------------------------------------------------------------------------
+
+def parse_cli():
+    """
+    Parse command line arguments of the form:
+        v4 n12
+        V04 N12
+    """
+
+    parser = argparse.ArgumentParser(description="Download IET E and T issue PDFs")
+    parser.add_argument("volume", help="Volume, e.g. v4 or V04")
+    parser.add_argument("issue", help="Issue, e.g. n12 or N12")
+
+    args = parser.parse_args()
+
+    def extract_number(text, prefix):
+        text = text.strip().lower()
+        if not text.startswith(prefix):
+            raise ValueError(f"Expected {prefix} prefix in '{text}'")
+        return int(text[1:])
+
     try:
-        os.makedirs(download_area_full_path)
-    except OSError, e:
-        if e.errno != os.errno.EEXIST:
-            raise   
-        pass
+        vol = extract_number(args.volume, "v")
+        iss = extract_number(args.issue, "n")
+    except Exception as e:
+        raise SystemExit(f"Invalid arguments: {e}")
+
+    if not (1 <= vol <= 99):
+        raise SystemExit("Volume must be between 1 and 99")
+
+    if not (1 <= iss <= 99):
+        raise SystemExit("Issue must be between 1 and 99")
+
+    return vol, iss
 
 
-# Configure and activate the Chrome browser
-def use_chrome_browser(download_area_full_path):
-    options = webdriver.ChromeOptions()
-    #options.add_argument('--ignore-certificate-errors')
-    #options.add_argument("--test-type")
-    #options.binary_location = "/usr/bin/google-chrome"
+# ---------------------------------------------------------------------------
+# Formatting helpers
+# ---------------------------------------------------------------------------
 
-    profile = {"plugins.plugins_list": [{"enabled":False,"name":"Chrome PDF Viewer"}], "download.default_directory" : download_area_full_path}
-    options.add_experimental_option("prefs", profile)
+def format_prefix(volume, issue):
+    """Return VxxNyy string."""
+    return f"V{volume:02d}N{issue:02d}"
 
-    driver = webdriver.Chrome(chrome_options = options)
-    driver = webdriver.Chrome()
 
-    driver.command_executor._commands["send_command"] = ("POST", '/session/$sessionId/chromium/send_command')
-    params = {'cmd': 'Page.setDownloadBehavior', 'params': {'behavior': 'allow', 'downloadPath': dl_tgt}}
-    command_result = driver.execute("send_command", params)
+def prepare_output_dir(prefix):
+    """Create output directory if required."""
+    path = Path.cwd() / prefix
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
-    return driver
 
-# Configure and activate the Firefox browser
-def use_firefox_browser(download_area_full_path):
-    mime_types = "application/pdf,application/vnd.adobe.xfdf,application/vnd.fdf,application/vnd.adobe.xdp+xml"
-
-    profile = webdriver.FirefoxProfile()
-    profile.set_preference("browser.download.folderList", 2)
-    profile.set_preference("browser.download.manager.showWhenStarting", False)
-    profile.set_preference("browser.download.dir", dl_tgt)
-    profile.set_preference("browser.helperApps.neverAsk.saveToDisk", mime_types)
-    profile.set_preference("plugin.disable_full_page_plugin_for_types", mime_types)
-    profile.set_preference("pdfjs.disabled", True)
-    profile.set_preference("browser.link.open_newwindow.restriction", 0)
-    profile.set_preference("browser.link.open_newwindow", 1)
-    profile.set_preference("plugin.scan.plid.all", False)
-    profile.set_preference("plugin.scan.Acrobat", "99.0")
-    profile.set_preference("plugin.disable_full_page_plugin_for_types", "application/xpdf")
-    
-    driver = webdriver.Firefox(firefox_profile = profile)
-
-    return driver
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
 
 def fetch_password():
-    home = expanduser("~")
-    pwd_file_name = home + "/.iet"
-    with open(pwd_file_name) as pwd_file:
-        pwd = pwd_file.readline().strip()
-    return pwd
+    """
+    Read password from ~/.iet
+    First line only.
+    """
+    path = Path.home() / ".iet"
+    return path.read_text().strip()
 
-# Log in to the IET website, assuming the browser is on the journal TOC page
-def login_to_iet(username, password, driver):
-    # Click on the Login button to reveal the boxes
-    driver.find_element(By.XPATH, '//*[@id="loginBox"]/ul/li[1]/h4/a').click();
 
-    # Click on "remember me". This button is not always present, so allow for that possibility.
-    remember_me = driver.find_elements_by_xpath('//*[@id="remember"]')
-    if len(remember_me) > 0:
-        # Wait for the "remember me" radio button to be visible before trying to click on it.
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH,'//*[@id="remember"]')))
-        remember_me[0].click()
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service as FirefoxService
 
-    # Enter username and password. Hit RETURN in the password box
-    driver.find_element(By.XPATH, '//*[@id="signname"]').send_keys(username)
-    driver.find_element(By.XPATH, '//*[@id="signpsswd"]').send_keys(password + "\n")
+def login_and_get_session(username, password, toc_url):
+    logging.info("Starting Firefox with existing profile")
 
-def volume_type(v):
-    min_volume = 1
-    max_volume = 12
-    v = int(v)
-    if (v < min_volume)  or (v > max_volume):
-        raise argparse.ArgumentTypeError("Journal Volume must be {}..{}".format(min_volume, max_volume))
-    return v
+    options = Options()
 
-def issue_type(i):
-    min_issue = 1
-    max_issue = 14
-    i = int(i)
-    if (i < min_issue) or (i > max_issue):
-        raise argparse.ArgumentTypeError("Journal Issue must be {}..{}".format(min_issue, max_issue))
-    return i
+    # IMPORTANT: set this to your real Firefox profile path
+    profile_path = str(Path.home() / ".mozilla/firefox")
 
-# Parse arguments
-parser = argparse.ArgumentParser(description = 'Select Volume and Issue')
-parser.add_argument('--volume', required = True, type = volume_type)
-parser.add_argument('--issue', required = True, type = issue_type)
+    # You need the actual profile directory (ends in .default-release etc.)
+    profiles = list(Path(profile_path).glob("*.default*"))
+    if not profiles:
+        raise SystemExit("Could not find Firefox profile")
 
-args = parser.parse_args()
+    profile_dir = str(profiles[0])
+    logging.info(f"Using Firefox profile: {profile_dir}")
 
-vol = args.volume
-iss = args.issue
+    options.add_argument("-profile")
+    options.add_argument(profile_dir)
 
-# Main code starts here
-print("Starting IET journal retrieval for Volume {:02d} Issue {:02d}".format(vol, iss))
+    driver = webdriver.Firefox(options=options)
+    driver.get(toc_url)
 
-# Create the download area
-dl_tgt = make_download_area_name(vol, iss)
-create_download_area(dl_tgt)
+    input("If needed, confirm you are logged in, then press Enter...")
 
-# Start the relevant browser
-driver = use_chrome_browser(dl_tgt)
+    # Extract cookies
+    session = requests.Session()
+    for cookie in driver.get_cookies():
+        session.cookies.set(cookie['name'], cookie['value'])
 
-# Say what's going on
-print("Downloading to [" + dl_tgt + "] using " + driver.capabilities['browserName'] + " " + driver.capabilities['version'])
+    driver.quit()
 
-# Navigate to the journal page and log in
-password = fetch_password()
-driver.get("http://digital-library.theiet.org/content/journals/et/{:d}/{:d}".format(vol, iss))
-login_to_iet("arcarlini", password, driver)
+    logging.info("Session cookies captured")
 
-# Pick up the HTML source for the whole table of contents page
-html = driver.page_source
+    return session
 
-# Drop everything after the text "Most viewed content for this Journal" because that includes further links to articles which would be erroneously downloaded
-viable = re.findall(r'\A(.*)<div class="headlinelarge"><h2>Most viewed content for this Journal</h2></div>', html, re.MULTILINE | re.DOTALL)
 
-# Pick up everything that looks like a link to an article in this journal
-# The relevant HTML looks like this:
-# <h5 class="browseItemTitle">
-# <a href="/content/journals/10.1049/et_20070106" title="" 
-# >Editor&apos;s comment</a></h5>
 
-result = re.findall(r'<h5 class="browseItemTitle">.*?<a href="(.*?)" title="".*?>(.*?)</a></h5>', viable[0], re.MULTILINE | re.DOTALL)
+# ---------------------------------------------------------------------------
+# Fetch TOC
+# ---------------------------------------------------------------------------
 
-# Loop through all the links to article pages
-for index, rs in enumerate(result):
-    link = "http://digital-library.theiet.org" + rs[0]
-    print ("Fetching [{:02d}] <link> = [{}] <title> = {}".format(index + 1, link, rs[1].encode('utf-8')))
-    # Move to the specific article page
-    driver.get(link)
-    # Within the article page there is a link to the PDF file for that article. Click that link.
-    link = driver.find_element_by_link_text('PDF')
-    link.click()
-    #actionChains = ActionChains(driver)
-    # In Firefox: right click, down arrow five times and hit RETURN to bring up the save dialog
-    #print("Right clicklink ...")
-    #actionChains.context_click(link).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.ARROW_DOWN).send_keys(Keys.RETURN).perform()
-    #actionChains.context_click(link).key_down(Keys.CONTROL).send_keys("A").key_up(Keys.CONTROL).perform()
-    #print("pausing")
-    #time.sleep(100)
-    #print("breaking")
-    #break
+def fetch_toc(session, volume, issue):
+    url = f"https://digital-library.theiet.org/toc/et/{volume}/{issue}"
+    logging.info(f"Fetching TOC: {url}")
 
-# For convenience, head back to the original TOC page.
-driver.get("http://digital-library.theiet.org/content/journals/et/{:d}/{:d}".format(vol, iss))
+    r = session.get(url)
+
+    if r.status_code != 200:
+        raise SystemExit(f"Failed to fetch TOC page: HTTP {r.status_code}")
+
+    return r.text
+
+
+# ---------------------------------------------------------------------------
+# Parse links
+# ---------------------------------------------------------------------------
+
+def extract_pdf_links(html):
+    """
+    Extract all /doi/epdf/ links in order.
+    """
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    links = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "/doi/epdf/" in href:
+            links.append(href)
+
+    if not links:
+        logging.warning("No PDF links found in TOC")
+
+    return links
+
+
+# ---------------------------------------------------------------------------
+# URL transform
+# ---------------------------------------------------------------------------
+
+def epdf_to_pdf(epdf_url):
+    return epdf_url.replace("/epdf/", "/pdf/") + "?download=true"
+
+
+# ---------------------------------------------------------------------------
+# Filename handling
+# ---------------------------------------------------------------------------
+
+def get_filename_from_response(response):
+    cd = response.headers.get("Content-Disposition")
+    if not cd:
+        return None
+
+    match = re.search(r'filename="?([^"]+)"?', cd)
+    if match:
+        return match.group(1)
+
+    return None
+
+
+def sanitize_filename(name):
+    name = name.strip()
+    name = name.replace(" ", "-")
+    name = re.sub(r'[^A-Za-z0-9._-]', '', name)
+    return name
+
+
+def ensure_unique(path):
+    counter = 1
+    base = path.stem
+    ext = path.suffix
+
+    while path.exists():
+        path = path.with_name(f"{base}-{counter}{ext}")
+        counter += 1
+
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Download
+# ---------------------------------------------------------------------------
+
+def download_pdf(session, url, output_dir, prefix, index):
+    """
+    Download a single PDF.
+    Returns True on success, False otherwise.
+    """
+
+    try:
+        r = session.get(url, stream=True)
+
+        if r.status_code != 200:
+            logging.warning(f"[{index:02d}] HTTP {r.status_code}")
+            return False
+
+        if "application/pdf" not in r.headers.get("Content-Type", ""):
+            logging.warning(f"[{index:02d}] Not a PDF response")
+
+        original_name = get_filename_from_response(r)
+        if not original_name:
+            logging.warning(f"[{index:02d}] Missing filename, using fallback")
+            original_name = "unknown.pdf"
+
+        safe_name = sanitize_filename(original_name)
+        final_name = f"{prefix}-{index:02d}-{safe_name}"
+
+        path = ensure_unique(output_dir / final_name)
+
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(8192):
+                if chunk:
+                    f.write(chunk)
+
+        logging.info(f"[{index:02d}] Saved {path.name}")
+        return True
+
+    except Exception as e:
+        logging.error(f"[{index:02d}] Error: {e}")
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Main download loop
+# ---------------------------------------------------------------------------
+
+def download_issue(session, links, output_dir, prefix):
+    success = 0
+    failure = 0
+
+    for i, epdf in enumerate(links, start=1):
+        full_epdf = "https://digital-library.theiet.org" + epdf
+        pdf_url = epdf_to_pdf(full_epdf)
+
+        ok = download_pdf(session, pdf_url, output_dir, prefix, i)
+
+        if ok:
+            success += 1
+        else:
+            failure += 1
+
+        time.sleep(0.5)
+
+    logging.info("Download complete")
+    logging.info(f"Total: {len(links)}")
+    logging.info(f"Successful: {success}")
+    logging.warning(f"Failed: {failure}")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    volume, issue = parse_cli()
+    prefix = format_prefix(volume, issue)
+
+    logging.info(f"Processing {prefix}")
+
+    output_dir = prepare_output_dir(prefix)
+
+    password = fetch_password()
+
+    toc_url = f"https://digital-library.theiet.org/toc/et/{volume}/{issue}"
+
+    session = login_and_get_session("your_username_here", password, toc_url)
+
+    html = fetch_toc(session, volume, issue)
+
+    links = extract_pdf_links(html)
+
+    if not links:
+        logging.warning("No links found, nothing to do")
+        return
+
+    download_issue(session, links, output_dir, prefix)
+
+
+if __name__ == "__main__":
+    main()
