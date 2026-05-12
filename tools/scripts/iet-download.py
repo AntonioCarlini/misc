@@ -29,11 +29,13 @@ External Libraries Used:
 """
 
 import argparse
+import glob
 import logging
 import os
-import re
-import time
 import random
+import re
+import subprocess
+import time
 from pathlib import Path
 
 # Use undetected_chromedriver instead of standard selenium
@@ -314,6 +316,49 @@ def download_issue(driver, links, output_dir, prefix, base_delay):
             logging.info(f"Sleeping for {wait_time:.2f} seconds...")
             time.sleep(wait_time)
 
+
+#    Merge all downloaded issue PDFs into a single consolidated PDF and
+#    lock the resulting file as read-only.
+#
+#    This function searches for PDF files matching the pattern
+#    '{volume_issue}-*.pdf' within the specified output directory,
+#    sorts them lexicographically to preserve article order, and merges
+#    them into a single output file named '{volume_issue}.pdf'.
+#
+#    After successful merging, the resulting PDF permissions are set to
+#    read-only (444) to prevent accidental modification.
+#
+#    Parameters:
+#        output_dir (str): Directory containing the downloaded PDF files.
+#        volume_issue (str): Prefix identifying the issue (e.g. 'V06N01').
+#
+#    Raises:
+#        subprocess.CalledProcessError: If the pdftk merge operation fails.
+#        ValueError: If no matching PDF files are found.
+
+def merge_pdfs(output_dir, volume_issue):
+    pattern = os.path.join(output_dir, f"{volume_issue}-*.pdf")
+
+    pdfs = [p for p in sorted(glob.glob(pattern)) if os.path.getsize(p) > 0]
+
+    if not pdfs:
+        print("ERROR: No PDFs found to merge.")
+        return
+
+    output_file = os.path.join(output_dir, f"{volume_issue}.pdf")
+
+    print(f"INFO: Merging {len(pdfs)} PDFs into {output_file}")
+
+    subprocess.run(
+        ["pdftk", *pdfs, "output", output_file],
+        check=True
+    )
+
+    # make final PDF read-only
+    os.chmod(output_file, 0o444)
+
+    print(f"INFO: Final PDF created and locked: {output_file}")
+
 # ---------------------------------------------------------------------------
 # Main Execution
 # ---------------------------------------------------------------------------
@@ -360,6 +405,8 @@ def main():
     finally:
         logging.info("Closing browser...")
         driver.quit()
+
+    merge_pdfs(output_dir, prefix)
 
 if __name__ == "__main__":
     main()
