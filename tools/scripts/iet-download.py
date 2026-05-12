@@ -242,7 +242,7 @@ def setup_browser(output_dir, profile_name):
     options.add_experimental_option("prefs", prefs)
 
     # Initialize undetected-chromedriver
-    driver = uc.Chrome(options=options, version_main=138)
+    driver = uc.Chrome(options=options, version_main=None)
     return driver
 
 # ---------------------------------------------------------------------------
