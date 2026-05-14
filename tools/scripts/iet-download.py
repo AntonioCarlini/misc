@@ -280,6 +280,7 @@ def get_pdf_links(driver, toc_url):
 # .crdownload files), renames the completed file to a clean format, and applies a randomised 
 # delay before requesting the next file to ease server load and prevent rate-limiting.
 def download_issue(driver, links, output_dir, prefix, base_delay):
+    failed_indices = []  # Track IDs that didn't get renamed
     for i, epdf_url in enumerate(links, start=1):
         pdf_url = epdf_url.replace("/epdf/", "/pdf/") + "?download=true"
         
@@ -288,34 +289,36 @@ def download_issue(driver, links, output_dir, prefix, base_delay):
         files_before = set(os.listdir(output_dir))
         driver.get(pdf_url)
 
-        if "Cloudflare" in driver.title or "Verify" in driver.title:
-            input("Cloudflare Block! Solve the captcha in the browser, then press Enter...")
-
-        # Wait for download logic remains the same...
         new_file = None
-        for _ in range(45):
+        # Increased timeout to 60 seconds to be safer
+        for _ in range(60):
             time.sleep(1)
             files_after = set(os.listdir(output_dir))
             added_files = files_after - files_before
+            # Filter out browser temporary files
             actual_files = [f for f in added_files if not f.endswith(('.part', '.crdownload', '.tmp'))]
             if actual_files:
                 new_file = actual_files[0]
                 break
         
         if new_file:
-            # Rename logic remains the same...
             old_path = output_dir / new_file
+            # Clean filename: replace spaces with dashes, remove non-alphanumeric
             clean_name = re.sub(r'[^A-Za-z0-9._-]', '', new_file.replace(" ", "-"))
             new_name = f"{prefix}-{i:02d}-{clean_name}"
             os.rename(old_path, output_dir / new_name)
             logging.info(f"[{i:02d}] Success: {new_name}")
+        else:
+            # FAILURE DETECTION
+            logging.error(f"[{i:02d}] Rename failed: No new file detected within 60s for {pdf_url}")
+            failed_indices.append(i)
         
-        # Jitter implementation: base_delay +/- 5 seconds
-        wait_time = max(1, base_delay + random.uniform(-5, 5))
-        if i < len(links): # Don't wait after the very last file
+        if i < len(links):
+            wait_time = max(1, base_delay + random.uniform(-5, 5))
             logging.info(f"Sleeping for {wait_time:.2f} seconds...")
             time.sleep(wait_time)
-
+            
+    return failed_indices
 
 #    Merge all downloaded issue PDFs into a single consolidated PDF and
 #    lock the resulting file as read-only.
@@ -336,28 +339,37 @@ def download_issue(driver, links, output_dir, prefix, base_delay):
 #        subprocess.CalledProcessError: If the pdftk merge operation fails.
 #        ValueError: If no matching PDF files are found.
 
-def merge_pdfs(output_dir, volume_issue):
+def merge_pdfs(output_dir, volume_issue, failed_indices):
     pattern = os.path.join(output_dir, f"{volume_issue}-*.pdf")
-
     pdfs = [p for p in sorted(glob.glob(pattern)) if os.path.getsize(p) > 0]
 
     if not pdfs:
-        print("ERROR: No PDFs found to merge.")
+        logging.error("No renamed PDFs found to merge.")
         return
 
-    output_file = os.path.join(output_dir, f"{volume_issue}.pdf")
+    # Create the filename suffix for failures
+    fail_suffix = ""
+    if failed_indices:
+        fail_tag = "-".join(map(str, failed_indices))
+        fail_suffix = f"-failed-rename-{fail_tag}"
+        logging.warning(f"!!! Warning: Missing indices in merge: {failed_indices}")
 
-    print(f"INFO: Merging {len(pdfs)} PDFs into {output_file}")
+    output_file = os.path.join(output_dir, f"{volume_issue}{fail_suffix}.pdf")
+    logging.info(f"Merging {len(pdfs)} PDFs into {output_file}")
 
-    subprocess.run(
-        ["pdftk", *pdfs, "output", output_file],
-        check=True
-    )
-
-    # make final PDF read-only
+    subprocess.run(["pdftk", *pdfs, "output", output_file], check=True)
     os.chmod(output_file, 0o444)
-
-    print(f"INFO: Final PDF created and locked: {output_file}")
+    
+    # Provide the manual fix command if something failed
+    if failed_indices:
+        print("\n" + "="*60)
+        print("MANUAL FIX REQUIRED")
+        print(f"Indices {failed_indices} were downloaded but not renamed.")
+        print(f"1. Find the files in {output_dir}")
+        print(f"2. Rename them to follow the pattern: {volume_issue}-[index]-something.pdf")
+        print("3. Run this command to re-merge:")
+        print(f"   pdftk {output_dir}/{volume_issue}-*.pdf output {output_dir}/{volume_issue}.pdf")
+        print("="*60 + "\n")
 
 # ---------------------------------------------------------------------------
 # Main Execution
@@ -376,6 +388,7 @@ def main():
     volume, issue, profile, delay = parse_cli() # Added delay
     prefix = format_prefix(volume, issue)
     output_dir = prepare_output_dir(prefix)
+    failed = []
 
     logging.info(f"Starting archive of {prefix} with base delay {delay}s")
     
@@ -397,7 +410,7 @@ def main():
         links = get_pdf_links(driver, toc_url)
 
         if links:
-            download_issue(driver, links, output_dir, prefix, delay) # Passed delay
+            failed = download_issue(driver, links, output_dir, prefix, delay) # Passed delay
         else:
             logging.warning("No links found.")
         
@@ -406,7 +419,7 @@ def main():
         logging.info("Closing browser...")
         driver.quit()
 
-    merge_pdfs(output_dir, prefix)
+    merge_pdfs(output_dir, prefix, failed)
 
 if __name__ == "__main__":
     main()
